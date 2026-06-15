@@ -1,0 +1,6 @@
+{
+  "name": "TutorTrack",
+  "description": "A modern offline-first Tuition Management System for private tutors to manage students, schedules, attendance, payments, and sync in real time.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
