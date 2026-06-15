@@ -558,7 +558,7 @@ export default function App() {
 
       ) : (
         // Standard high-efficiency full-desktop system view
-        <ApplicationMainContent />
+        ApplicationMainContent()
       )}
 
     </div>

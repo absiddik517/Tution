@@ -7,12 +7,65 @@ import {
 export default function SettingsModule() {
   const { 
     settings, students, schedules, attendance, payments, 
-    toggleDarkMode, setPinLock, clearDatabase, triggerManualSync, importData 
+    toggleDarkMode, setPinLock, clearDatabase, triggerManualSync, importData,
+    saveFirebaseConfig, triggerFirebasePull
   } = useStore();
 
   const [pinInput, setPinInput] = useState('');
   const [pinEnabledLocal, setPinEnabledLocal] = useState(settings.pinLockEnabled);
   const [showPinState, setShowPinState] = useState(false);
+
+  // Firebase Config Form State
+  const [showConfigForm, setShowConfigForm] = useState(false);
+  const [apiKey, setApiKey] = useState(settings.firebaseConfig?.apiKey || '');
+  const [projectId, setProjectId] = useState(settings.firebaseConfig?.projectId || '');
+  const [authDomain, setAuthDomain] = useState(settings.firebaseConfig?.authDomain || '');
+  const [storageBucket, setStorageBucket] = useState(settings.firebaseConfig?.storageBucket || '');
+  const [messagingSenderId, setMessagingSenderId] = useState(settings.firebaseConfig?.messagingSenderId || '');
+  const [appId, setAppId] = useState(settings.firebaseConfig?.appId || '');
+  const [dbId, setDbId] = useState(settings.firebaseConfig?.firestoreDatabaseId || '(default)');
+  const [syncPulling, setSyncPulling] = useState(false);
+
+  const handleSaveConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiKey || !projectId) {
+      alert('API Key and Project ID are required to establish a secure database link.');
+      return;
+    }
+    saveFirebaseConfig({
+      apiKey,
+      projectId,
+      authDomain,
+      storageBucket,
+      messagingSenderId,
+      appId,
+      firestoreDatabaseId: dbId || '(default)'
+    });
+    alert('Firebase Cloud synchronization parameters saved successfully.');
+    setShowConfigForm(false);
+  };
+
+  const handlePullFromFirebase = async () => {
+    if (!settings.firebaseConfig?.apiKey || !settings.firebaseConfig?.projectId) {
+      alert('Please save your Firebase Web App configuration credentials first.');
+      return;
+    }
+    if (confirm('Are you sure you want to pull from the cloud? This will pull down students, records, and payment logs, overwriting matching local data.')) {
+      setSyncPulling(true);
+      try {
+        const res = await triggerFirebasePull();
+        if (res.success) {
+          alert('All cloud collections were pulled and synchronized securely with local tables!');
+        } else {
+          alert(`Failed pulling from Firestore: ${res.error}`);
+        }
+      } catch (err: any) {
+        alert(`Pull Sync failed: ${err?.message || String(err)}`);
+      } finally {
+        setSyncPulling(false);
+      }
+    }
+  };
 
   // Compute pending sync changes count
   const pendingCount = useMemo(() => {
@@ -119,11 +172,11 @@ export default function SettingsModule() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* Firebase Synchronization controls */}
-        <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4">
+        <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4 text-slate-800">
           <div className="flex items-center justify-between border-b border-slate-50 pb-3">
             <div className="flex items-center gap-2">
               <CloudLightning className="text-indigo-600" size={18} />
-              <h3 className="font-bold text-slate-800 text-sm">Firebase Backup Sync</h3>
+              <h3 className="font-bold text-slate-800 text-sm font-display">Firebase Backup Sync</h3>
             </div>
             
             <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wide font-extrabold ${
@@ -136,25 +189,103 @@ export default function SettingsModule() {
           </div>
 
           <p className="text-xs text-slate-500 leading-relaxed">
-            All database modifications write to local SQLite cache instantly. TutorTrack performs background replication checks to guarantee cloud redundancy.
+            All database modifications write to local cache instantly. Config your Firebase Web App credentials below for real-time background replication.
           </p>
 
           <div className="p-4 bg-slate-50 rounded-2xl space-y-2.5 text-xs font-medium text-slate-600">
             <div className="flex justify-between">
-              <span>Cloud Engine Status:</span>
-              <span className="text-emerald-700 font-bold flex items-center gap-1">
-                ● Live Firebase Connected
+              <span>Cloud Status:</span>
+              <span className={`font-bold flex items-center gap-1 ${settings.firebaseConfig?.apiKey ? 'text-emerald-700' : 'text-slate-400'}`}>
+                ● {settings.firebaseConfig?.apiKey ? 'Firebase Connected' : 'Local Offline Mode'}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>Last Successful Redundancy:</span>
-              <span className="text-slate-800 font-bold">{settings.lastBackupTime || 'None'}</span>
+              <span>Last Sync Time:</span>
+              <span className="text-slate-800 font-bold">{settings.lastBackupTime || 'Never'}</span>
             </div>
             <div className="flex justify-between">
-              <span>Total Backups Uploaded:</span>
-              <span className="text-indigo-600 font-extrabold">{settings.backupSuccessCount} sessions</span>
+              <span>Sync Sessions:</span>
+              <span className="text-indigo-600 font-extrabold">{settings.backupSuccessCount} uploads</span>
             </div>
           </div>
+
+          {/* Toggle buttons to configure or pull */}
+          <div className="flex gap-2.5">
+            <button
+              onClick={() => setShowConfigForm(!showConfigForm)}
+              className="flex-1 py-2 px-3 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1"
+            >
+              ⚙️ {showConfigForm ? 'Close Config' : 'Configure keys'}
+            </button>
+            <button
+              onClick={handlePullFromFirebase}
+              disabled={syncPulling || !settings.firebaseConfig?.apiKey}
+              className="flex-1 py-2 px-3 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1 disabled:opacity-50"
+            >
+              📥 Pull from cloud
+            </button>
+          </div>
+
+          {showConfigForm && (
+            <form onSubmit={handleSaveConfig} className="bg-slate-50 p-4 rounded-2xl space-y-2.5 border border-slate-100 animate-in slide-in-from-top duration-200">
+              <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400 block pb-1 border-b border-slate-200">Firebase Credentials</span>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block">API Key *</label>
+                  <input 
+                    type="password"
+                    required
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full font-mono text-[10px] p-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block">Project ID *</label>
+                  <input 
+                    type="text"
+                    required
+                    value={projectId}
+                    onChange={(e) => setProjectId(e.target.value)}
+                    placeholder="tutortrack-ea6b"
+                    className="w-full font-mono text-[10px] p-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block">Auth Domain</label>
+                  <input 
+                    type="text"
+                    value={authDomain}
+                    onChange={(e) => setAuthDomain(e.target.value)}
+                    placeholder="tutortrack.firebaseapp.com"
+                    className="w-full font-mono text-[10px] p-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block">App ID</label>
+                  <input 
+                    type="text"
+                    value={appId}
+                    onChange={(e) => setAppId(e.target.value)}
+                    placeholder="1:842:web:6e..."
+                    className="w-full font-mono text-[10px] p-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5"
+              >
+                <Save size={13} /> Save Credentials
+              </button>
+            </form>
+          )}
 
           <button
             onClick={triggerManualSync}
@@ -163,7 +294,7 @@ export default function SettingsModule() {
           >
             {settings.isSyncing ? (
               <>
-                <RefreshCw className="animate-spin" size={14} /> Backing up to Firestore...
+                <RefreshCw className="animate-spin" size={14} /> Replicating to cloud database...
               </>
             ) : (
               <>
@@ -310,7 +441,7 @@ export default function SettingsModule() {
           <ShieldAlert size={14} className="text-red-700" /> Danger System Zone
         </h4>
         <p className="text-xs text-slate-600 leading-normal">
-          Erasing database tables restores standard workspace tutor datasets. All custom active tuition profiles, payment logs, and schedule parameters will be fully reset.
+          Wiping the database deletes all local tables (students, lessons, bills, logs). The local cache will start as a completely fresh, empty dataset. This action is irreversible.
         </p>
         <button
           onClick={() => {
@@ -320,7 +451,7 @@ export default function SettingsModule() {
           }}
           className="px-4 py-2 text-xs font-bold bg-white text-red-600 hover:text-red-800 border border-red-200 hover:border-red-300 rounded-xl shadow-sm transition"
         >
-          Restore default database state
+          Erase local database tables (Wipe clean)
         </button>
       </div>
 

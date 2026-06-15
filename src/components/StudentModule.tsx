@@ -19,12 +19,12 @@ export default function StudentModule() {
 
   // Form Fields State
   const [formName, setFormName] = useState('');
-  const [formClass, setFormClass] = useState('Grade 10');
+  const [formClass, setFormClass] = useState('Class 10 (SSC)');
   const [formSubjectVal, setFormSubjectVal] = useState('');
   const [formSubjects, setFormSubjects] = useState<string[]>([]);
   const [formPhone, setFormPhone] = useState('');
   const [formCycle, setFormCycle] = useState<Student['paymentCycle']>('Monthly');
-  const [formSalary, setFormSalary] = useState(400);
+  const [formSalary, setFormSalary] = useState(5000);
   const [formStartDate, setFormStartDate] = useState(new Date().toISOString().substring(0, 10));
   const [formStatus, setFormStatus] = useState<Student['status']>('Active');
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
@@ -32,12 +32,12 @@ export default function StudentModule() {
   // Reset helper
   const resetForm = () => {
     setFormName('');
-    setFormClass('Grade 10');
+    setFormClass('Class 10 (SSC)');
     setFormSubjectVal('');
     setFormSubjects([]);
     setFormPhone('');
     setFormCycle('Monthly');
-    setFormSalary(400);
+    setFormSalary(5000);
     setFormStartDate(new Date().toISOString().substring(0, 10));
     setFormStatus('Active');
     setFormErrors({});
@@ -80,8 +80,8 @@ export default function StudentModule() {
 
     if (!formPhone.trim()) {
       errors.phone = "Phone contact number is required";
-    } else if (!/^\+?[d\s\-()1-9]{7,16}$/.test(formPhone.trim())) {
-      errors.phone = "Please enter a valid phone number format";
+    } else if (!/^\+?[0-9\s\-()]{7,16}$/.test(formPhone.trim())) {
+      errors.phone = "Please enter a valid phone number (e.g. 01711315695 or +8801711315695)";
     }
 
     if (formSalary <= 0) {
@@ -319,7 +319,7 @@ export default function StudentModule() {
                     <DollarSign size={13} /> Tuition Rate:
                   </span>
                   <div className="text-right">
-                    <span className="font-bold text-slate-800">${student.monthlySalary}</span>
+                    <span className="font-bold text-slate-800">৳{student.monthlySalary}</span>
                     <span className="text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded ml-1 tracking-wide font-medium">
                       {student.paymentCycle}
                     </span>
@@ -433,13 +433,15 @@ export default function StudentModule() {
                     onChange={(e) => setFormClass(e.target.value)}
                     className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none"
                   >
-                    <option value="Grade 6">Grade 6</option>
-                    <option value="Grade 7">Grade 7</option>
-                    <option value="Grade 8">Grade 8</option>
-                    <option value="Grade 9">Grade 9</option>
-                    <option value="Grade 10">Grade 10</option>
-                    <option value="Grade 11">Grade 11</option>
-                    <option value="Grade 12">Grade 12</option>
+                    <option value="Class 5">Class 5</option>
+                    <option value="Class 6">Class 6</option>
+                    <option value="Class 7">Class 7</option>
+                    <option value="Class 8 (JSC)">Class 8 (JSC)</option>
+                    <option value="Class 9">Class 9</option>
+                    <option value="Class 10 (SSC)">Class 10 (SSC)</option>
+                    <option value="Class 11 (HSC)">Class 11 (HSC)</option>
+                    <option value="Class 12 (HSC)">Class 12 (HSC)</option>
+                    <option value="Admission Prep">Admission Prep (BUET/Medical/DU)</option>
                     <option value="Undergraduate">Undergraduate</option>
                   </select>
                 </div>
@@ -451,7 +453,7 @@ export default function StudentModule() {
                     type="text" 
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
-                    placeholder="e.g. +1 (555) 019-2834"
+                    placeholder="e.g. 01711315695 or +8801711315695"
                     className={`w-full text-xs font-semibold p-3 bg-slate-50 border rounded-xl focus:outline-none focus:border-indigo-500 ${
                       formErrors.phone ? 'border-red-400 ring-1 ring-red-100' : 'border-slate-100'
                     }`}
@@ -521,12 +523,12 @@ export default function StudentModule() {
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Tuition Rate (Salary)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-3 text-slate-400 text-xs font-bold">$</span>
+                    <span className="absolute left-3 top-3 text-slate-400 text-xs font-bold">৳</span>
                     <input 
                       type="number" 
                       value={formSalary}
                       onChange={(e) => setFormSalary(Number(e.target.value))}
-                      placeholder="400"
+                      placeholder="5000"
                       className={`w-full text-xs font-semibold pl-8 pr-3 p-3 bg-slate-50 border rounded-xl focus:outline-none focus:border-indigo-500 ${
                         formErrors.salary ? 'border-red-400 ring-1 ring-red-100' : 'border-slate-100'
                       }`}
@@ -617,7 +619,7 @@ export default function StudentModule() {
 
                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Cycle Rate</span>
-                  <span className="text-base font-extrabold text-slate-700 mt-1 block">${selectedStudent.monthlySalary}</span>
+                  <span className="text-base font-extrabold text-slate-700 mt-1 block">৳{selectedStudent.monthlySalary}</span>
                   <span className="text-[10px] text-slate-500 block mt-1">Paid on {selectedStudent.paymentCycle} basis</span>
                 </div>
               </div>

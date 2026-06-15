@@ -153,13 +153,13 @@ export default function PaymentModule() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-slate-900 text-white p-5 rounded-3xl shadow-sm space-y-1 block">
           <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Accumulated earnings</span>
-          <span className="text-3xl font-extrabold tracking-tight block">${metrics.earned}</span>
+          <span className="text-3xl font-extrabold tracking-tight block">৳{metrics.earned}</span>
           <span className="text-xs text-slate-400 block mt-1 pt-1.5 border-t border-slate-800">Expected invoice revenue</span>
         </div>
 
         <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm space-y-1 block">
           <span className="text-[10px] text-emerald-600 uppercase tracking-widest font-bold">Received amount</span>
-          <span className="text-3xl font-extrabold text-slate-800 tracking-tight block">${metrics.received}</span>
+          <span className="text-3xl font-extrabold text-slate-800 tracking-tight block">৳{metrics.received}</span>
           <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-1 font-semibold">
             Collection efficiency: {metrics.earned > 0 ? Math.round((metrics.received / metrics.earned) * 100) : 0}%
           </span>
@@ -167,7 +167,7 @@ export default function PaymentModule() {
 
         <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm space-y-1 block">
           <span className="text-[10px] text-rose-500 uppercase tracking-widest font-bold">Outstanding due</span>
-          <span className="text-3xl font-extrabold text-rose-600 tracking-tight block">${metrics.dues}</span>
+          <span className="text-3xl font-extrabold text-rose-600 tracking-tight block">৳{metrics.dues}</span>
           <span className="text-xs text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full inline-block mt-1 font-semibold">
             Unpaid assets pending
           </span>
@@ -208,7 +208,7 @@ export default function PaymentModule() {
 
                         <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-medium">
                           <span>Attended: <b className="text-slate-700">{pay.attendedDays} days</b> (Expected: {pay.expectedDays})</span>
-                          <span>Billable: <b className="text-slate-800">${pay.payableAmount}</b></span>
+                          <span>Billable: <b className="text-slate-800">৳{pay.payableAmount}</b></span>
                           {pay.paymentDate && <span className="text-[11px] text-slate-400">Paid on: {pay.paymentDate}</span>}
                         </div>
                       </div>
@@ -228,7 +228,7 @@ export default function PaymentModule() {
                         </span>
                         {pay.dueAmount > 0 && (
                           <span className="text-[10px] font-bold text-red-500 block text-right mt-1">
-                            Due: ${pay.dueAmount}
+                            Due: ৳{pay.dueAmount}
                           </span>
                         )}
                       </div>
@@ -287,7 +287,7 @@ export default function PaymentModule() {
                         <h4 className="font-bold text-xs text-slate-800 leading-tight">{student?.name}</h4>
                         <span className="text-[10px] text-slate-400">{p.billingPeriod}</span>
                       </div>
-                      <span className="text-xs font-black text-rose-600">${p.dueAmount}</span>
+                      <span className="text-xs font-black text-rose-600">৳{p.dueAmount}</span>
                     </div>
 
                     <button
@@ -333,7 +333,7 @@ export default function PaymentModule() {
                   className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none"
                 >
                   {activeStudents.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.class}) - Salary Rate: ${s.monthlySalary}/{s.paymentCycle}</option>
+                    <option key={s.id} value={s.id}>{s.name} ({s.class}) - Salary Rate: ৳{s.monthlySalary}/{s.paymentCycle}</option>
                   ))}
                 </select>
               </div>
@@ -471,7 +471,7 @@ export default function PaymentModule() {
 
                 {/* Payable flat amount */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Custom Payable $ Amount</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Custom Payable ৳ Amount</label>
                   <input 
                     type="number" 
                     value={formPayableAmount}
@@ -484,7 +484,7 @@ export default function PaymentModule() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Paid Amount */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Currently Paid $ Amount</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Currently Paid ৳ Amount</label>
                   <input 
                     type="number" 
                     value={formPaidAmount}

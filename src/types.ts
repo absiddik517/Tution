@@ -64,6 +64,15 @@ export interface AppSettings {
   lastBackupTime: string;
   isSyncing: boolean;
   backupSuccessCount: number;
+  firebaseConfig?: {
+    apiKey: string;
+    authDomain: string;
+    projectId: string;
+    storageBucket: string;
+    messagingSenderId: string;
+    appId: string;
+    firestoreDatabaseId?: string;
+  };
 }
 
 export interface AppNotification {

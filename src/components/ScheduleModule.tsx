@@ -28,7 +28,14 @@ export default function ScheduleModule() {
     'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'
   ];
 
-  const [selectedDayTab, setSelectedDayTab] = useState<Schedule['weekday']>('Saturday');
+  // Auto detect today is Saturday, Sunday, Monday etc.
+  const initialDayTab = React.useMemo<Schedule['weekday']>(() => {
+    const days: Schedule['weekday'][] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const currentDay = days[new Date().getDay()];
+    return weekDaysOrdered.includes(currentDay) ? currentDay : 'Saturday';
+  }, []);
+
+  const [selectedDayTab, setSelectedDayTab] = useState<Schedule['weekday']>(initialDayTab);
 
   // Load editing values
   const handleStartEdit = (sc: Schedule) => {

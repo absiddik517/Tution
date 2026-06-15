@@ -4,12 +4,12 @@ import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification } 
 const DEFAULT_STUDENTS: Student[] = [
   {
     id: 'stud-1',
-    name: 'Aris Carter',
-    class: 'Grade 10',
+    name: 'Arif Rahman',
+    class: 'Class 10 (SSC)',
     subjects: ['Mathematics', 'Physics'],
-    phone: '+1 (555) 234-9812',
+    phone: '01711223344',
     paymentCycle: 'Monthly',
-    monthlySalary: 450,
+    monthlySalary: 6000,
     startDate: '2026-05-01',
     status: 'Active',
     createdAt: '2026-05-01T10:00:00Z',
@@ -18,12 +18,12 @@ const DEFAULT_STUDENTS: Student[] = [
   },
   {
     id: 'stud-2',
-    name: 'Sarah Jenkins',
-    class: 'Grade 12',
-    subjects: ['Chemistry', 'English Literature'],
-    phone: '+1 (555) 789-3211',
+    name: 'Tanim Ahmed',
+    class: 'Class 12 (HSC)',
+    subjects: ['Chemistry', 'English'],
+    phone: '+8801811223344',
     paymentCycle: 'Monthly',
-    monthlySalary: 600,
+    monthlySalary: 8000,
     startDate: '2026-05-10',
     status: 'Active',
     createdAt: '2026-05-10T11:00:00Z',
@@ -32,12 +32,12 @@ const DEFAULT_STUDENTS: Student[] = [
   },
   {
     id: 'stud-3',
-    name: 'David Lee',
-    class: 'Grade 8',
-    subjects: ['General Science', 'Algebra'],
-    phone: '+1 (555) 456-1122',
+    name: 'Nabila Islam',
+    class: 'Class 8 (JSC)',
+    subjects: ['General Science', 'General Math'],
+    phone: '01911223344',
     paymentCycle: 'Weekly',
-    monthlySalary: 120, // weekly rate
+    monthlySalary: 1500, // weekly rate
     startDate: '2026-05-15',
     status: 'Active',
     createdAt: '2026-05-15T09:00:00Z',
@@ -46,12 +46,12 @@ const DEFAULT_STUDENTS: Student[] = [
   },
   {
     id: 'stud-4',
-    name: 'Elena Gomez',
-    class: 'Grade 9',
+    name: 'Sajid Hasan',
+    class: 'Class 9',
     subjects: ['Biology'],
-    phone: '+1 (555) 901-8433',
+    phone: '01511223344',
     paymentCycle: '12 Days',
-    monthlySalary: 280,
+    monthlySalary: 3000,
     startDate: '2026-04-10',
     status: 'Inactive',
     createdAt: '2026-04-10T14:30:00Z',
@@ -200,8 +200,8 @@ const DEFAULT_PAYMENTS: Payment[] = [
     billingPeriod: 'May 2026',
     attendedDays: 8,
     expectedDays: 8,
-    payableAmount: 450,
-    paidAmount: 450,
+    payableAmount: 6000,
+    paidAmount: 6000,
     dueAmount: 0,
     paymentDate: '2026-05-30',
     status: 'Paid',
@@ -215,8 +215,8 @@ const DEFAULT_PAYMENTS: Payment[] = [
     billingPeriod: 'May 2026',
     attendedDays: 6,
     expectedDays: 6,
-    payableAmount: 600,
-    paidAmount: 600,
+    payableAmount: 8000,
+    paidAmount: 8000,
     dueAmount: 0,
     paymentDate: '2026-05-31',
     status: 'Paid',
@@ -231,9 +231,9 @@ const DEFAULT_PAYMENTS: Payment[] = [
     billingPeriod: 'June 2026',
     attendedDays: 2,
     expectedDays: 8,
-    payableAmount: 450,
-    paidAmount: 200,
-    dueAmount: 250,
+    payableAmount: 6000,
+    paidAmount: 2500,
+    dueAmount: 3500,
     paymentDate: '2026-06-12',
     status: 'Partial',
     createdAt: '2026-06-11T12:00:00Z',
@@ -246,9 +246,9 @@ const DEFAULT_PAYMENTS: Payment[] = [
     billingPeriod: 'June 2026',
     attendedDays: 2,
     expectedDays: 8,
-    payableAmount: 600,
+    payableAmount: 8000,
     paidAmount: 0,
-    dueAmount: 600,
+    dueAmount: 8000,
     paymentDate: '',
     status: 'Due',
     createdAt: '2026-06-11T12:00:00Z',
@@ -271,7 +271,7 @@ const DEFAULT_NOTIFICATIONS: AppNotification[] = [
   {
     id: 'notif-1',
     title: 'Upcoming Tuition Reminder',
-    body: 'In 30 minutes: Algebra session with David Lee at Home.',
+    body: 'In 30 minutes: Math session with Nabila Islam at Home.',
     type: 'schedule',
     timestamp: '2026-06-15T15:00:00Z',
     read: false,
@@ -279,7 +279,7 @@ const DEFAULT_NOTIFICATIONS: AppNotification[] = [
   {
     id: 'notif-2',
     title: 'Outstanding Due Alert',
-    body: 'Sarah Jenkins has a pending invoice of $600 for the billing cycle June 2026.',
+    body: 'Tanim Ahmed has a pending invoice of ৳8000 for the billing cycle June 2026.',
     type: 'payment',
     timestamp: '2026-06-13T09:00:00Z',
     read: true,
@@ -287,7 +287,7 @@ const DEFAULT_NOTIFICATIONS: AppNotification[] = [
   {
     id: 'notif-3',
     title: 'Attendance Logging Request',
-    body: 'Physics session with Aris Carter on Tuesday had no attendance parsed.',
+    body: 'Physics session with Arif Rahman on Tuesday had no attendance parsed.',
     type: 'attendance',
     timestamp: '2026-06-10T18:00:00Z',
     read: false,
@@ -310,31 +310,47 @@ const setStored = <T>(key: string, value: T) => {
 };
 
 export const TutorTrackDB = {
-  getStudents: (): Student[] => getStored('tt_students', DEFAULT_STUDENTS),
+  getStudents: (): Student[] => getStored('tt_students', []),
   setStudents: (students: Student[]) => setStored('tt_students', students),
 
-  getSchedules: (): Schedule[] => getStored('tt_schedules', DEFAULT_SCHEDULES),
+  getSchedules: (): Schedule[] => getStored('tt_schedules', []),
   setSchedules: (schedules: Schedule[]) => setStored('tt_schedules', schedules),
 
-  getAttendance: (): Attendance[] => getStored('tt_attendance', DEFAULT_ATTENDANCE),
+  getAttendance: (): Attendance[] => getStored('tt_attendance', []),
   setAttendance: (attendance: Attendance[]) => setStored('tt_attendance', attendance),
 
-  getPayments: (): Payment[] => getStored('tt_payments', DEFAULT_PAYMENTS),
+  getPayments: (): Payment[] => getStored('tt_payments', []),
   setPayments: (payments: Payment[]) => setStored('tt_payments', payments),
 
-  getSettings: (): AppSettings => getStored('tt_settings', DEFAULT_SETTINGS),
+  getSettings: (): AppSettings => getStored('tt_settings', {
+    darkMode: false,
+    pinLockEnabled: false,
+    pinCode: '',
+    biometricLockEnabled: false,
+    lastBackupTime: 'Never',
+    isSyncing: false,
+    backupSuccessCount: 0,
+  }),
   setSettings: (settings: AppSettings) => setStored('tt_settings', settings),
 
-  getNotifications: (): AppNotification[] => getStored('tt_notifications', DEFAULT_NOTIFICATIONS),
+  getNotifications: (): AppNotification[] => getStored('tt_notifications', []),
   setNotifications: (notif: AppNotification[]) => setStored('tt_notifications', notif),
 
-  // Reset database to initial defaults
+  // Reset database to initial empty slate (removing the default database state)
   resetDB: () => {
-    setStored('tt_students', DEFAULT_STUDENTS);
-    setStored('tt_schedules', DEFAULT_SCHEDULES);
-    setStored('tt_attendance', DEFAULT_ATTENDANCE);
-    setStored('tt_payments', DEFAULT_PAYMENTS);
-    setStored('tt_settings', DEFAULT_SETTINGS);
-    setStored('tt_notifications', DEFAULT_NOTIFICATIONS);
+    setStored('tt_students', []);
+    setStored('tt_schedules', []);
+    setStored('tt_attendance', []);
+    setStored('tt_payments', []);
+    setStored('tt_settings', {
+      darkMode: false,
+      pinLockEnabled: false,
+      pinCode: '',
+      biometricLockEnabled: false,
+      lastBackupTime: 'Never',
+      isSyncing: false,
+      backupSuccessCount: 0,
+    });
+    setStored('tt_notifications', []);
   }
 };

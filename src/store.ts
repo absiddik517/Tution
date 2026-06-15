@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification } from './types';
 import { TutorTrackDB } from './db';
+import { syncLocalToFirebase, fetchFromFirebase } from './firebase';
 
 interface TutorTrackStore {
   students: Student[];
@@ -42,6 +43,8 @@ interface TutorTrackStore {
 
   // Sync Engine & Settings Trigger
   triggerManualSync: () => Promise<void>;
+  saveFirebaseConfig: (config: AppSettings['firebaseConfig']) => void;
+  triggerFirebasePull: () => Promise<{ success: boolean; error?: string }>;
   toggleDarkMode: () => void;
   setPinLock: (enabled: boolean, pin?: string) => void;
   clearDatabase: () => void;
@@ -332,8 +335,35 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
       settings: { ...state.settings, isSyncing: true }
     }));
 
-    // Wait 2000ms simulating transmission to Google Firebase Firestore
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    let firebaseResult: { success: boolean; error?: string } = { success: true };
+    const config = get().settings.firebaseConfig;
+
+    if (config && config.apiKey && config.projectId) {
+      try {
+        const result = await syncLocalToFirebase(config, {
+          students: get().students,
+          schedules: get().schedules,
+          attendance: get().attendance,
+          payments: get().payments
+        });
+        if (!result.success) {
+          firebaseResult = { success: false, error: result.error };
+        }
+      } catch (e: any) {
+        firebaseResult = { success: false, error: e?.message || String(e) };
+      }
+    } else {
+      // Wait simulating outline backup
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+
+    if (!firebaseResult.success) {
+      set(state => ({
+        settings: { ...state.settings, isSyncing: false }
+      }));
+      get().addNotification('Sync Error', `Firebase rejection: ${firebaseResult.error}`, 'system');
+      return;
+    }
 
     // Turn all pending objects to 'synced'
     const syncItem = <T extends { syncStatus: 'pending' | 'synced', updatedAt: string }>(list: T[]): T[] => {
@@ -372,7 +402,64 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     // Persist finalized settings
     TutorTrackDB.setSettings(get().settings);
 
-    get().addNotification('Backup Success', 'All data backup modules successfully synced structure to Firestore.', 'system');
+    if (config && config.apiKey && config.projectId) {
+      get().addNotification('Firestore Sync Success', 'Successfully synchronized local tables to Firebase Firestore.', 'system');
+    } else {
+      get().addNotification('Backup Success', 'All local tuition backup modules successfully synced.', 'system');
+    }
+  },
+
+  saveFirebaseConfig: (config) => {
+    const updatedSettings = { ...get().settings, firebaseConfig: config };
+    TutorTrackDB.setSettings(updatedSettings);
+    set({ settings: updatedSettings });
+    get().addNotification('Firebase Configuration Saved', 'Credential parameters connected successfully.', 'system');
+  },
+
+  triggerFirebasePull: async () => {
+    const config = get().settings.firebaseConfig;
+    if (!config || !config.apiKey || !config.projectId) {
+      return { success: false, error: 'Firebase config is not found or incomplete under Settings.' };
+    }
+
+    set(state => ({
+      settings: { ...state.settings, isSyncing: true }
+    }));
+
+    try {
+      const result = await fetchFromFirebase(config);
+      set(state => ({
+        settings: { ...state.settings, isSyncing: false }
+      }));
+
+      if (result.success && result.data) {
+        const { students, schedules, attendance, payments } = result.data;
+        
+        // Merge or overwrite
+        if (students.length > 0) TutorTrackDB.setStudents(students);
+        if (schedules.length > 0) TutorTrackDB.setSchedules(schedules);
+        if (attendance.length > 0) TutorTrackDB.setAttendance(attendance);
+        if (payments.length > 0) TutorTrackDB.setPayments(payments);
+
+        set({
+          students: students.length > 0 ? students : get().students,
+          schedules: schedules.length > 0 ? schedules : get().schedules,
+          attendance: attendance.length > 0 ? attendance : get().attendance,
+          payments: payments.length > 0 ? payments : get().payments,
+        });
+
+        get().addNotification('Firebase Sync Pull Completed', 'Overwrote active dataset with Firebase database cloud tables.', 'system');
+        return { success: true };
+      } else {
+        get().addNotification('Pull Sync Rejected', result.error || 'Server rejected pull sync request.', 'system');
+        return { success: false, error: result.error };
+      }
+    } catch (e: any) {
+      set(state => ({
+        settings: { ...state.settings, isSyncing: false }
+      }));
+      return { success: false, error: e?.message || String(e) };
+    }
   },
 
   toggleDarkMode: () => {
