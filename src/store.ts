@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification } from './types';
 import { TutorTrackDB } from './db';
-import { syncLocalToFirebase, fetchFromFirebase } from './firebase';
+import { syncLocalToFirebase, fetchFromFirebase, getActiveConfig, isFirebaseConfigured } from './firebase';
 
 interface TutorTrackStore {
   students: Student[];
@@ -10,6 +10,8 @@ interface TutorTrackStore {
   payments: Payment[];
   settings: AppSettings;
   notifications: AppNotification[];
+  currentUser: any | null;
+  setCurrentUser: (user: any | null) => void;
   
   // Filtering & Search
   searchTerm: string;
@@ -65,12 +67,14 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   payments: TutorTrackDB.getPayments(),
   settings: TutorTrackDB.getSettings(),
   notifications: TutorTrackDB.getNotifications(),
+  currentUser: null,
+  setCurrentUser: (user) => set({ currentUser: user }),
 
   searchTerm: '',
   setSearchTerm: (term) => set({ searchTerm: term }),
   classFilter: 'All',
   setClassFilter: (classF) => set({ classFilter: classF }),
-  statusFilter: 'All',
+  statusFilter: 'Active',
   setStatusFilter: (filter) => set({ statusFilter: filter }),
 
   // STUDENT ACTIONS
@@ -108,14 +112,34 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   },
 
   deleteStudent: (id) => {
-    // Delete student, cascading to delete related schedules/attendance optionally, but keep list of deleted
+    const deletedStudent = get().students.find(s => s.id === id);
+    const affectedSchedules = get().schedules.filter(sch => sch.studentId === id);
+    
+    const queueDeletes: any[] = [];
+    if (deletedStudent) {
+      queueDeletes.push({ id: deletedStudent.id, collectionName: 'students' as const });
+    }
+    affectedSchedules.forEach(sc => {
+      queueDeletes.push({ id: sc.id, collectionName: 'schedules' as const });
+    });
+
     const updated = get().students.filter(s => s.id !== id);
     TutorTrackDB.setStudents(updated);
-    // Also remove respective schedules
     const updatedSchedules = get().schedules.filter(sch => sch.studentId !== id);
     TutorTrackDB.setSchedules(updatedSchedules);
 
-    set({ students: updated, schedules: updatedSchedules });
+    const existingDeletes = get().settings.deletedRecords || [];
+    const updatedSettings = {
+      ...get().settings,
+      deletedRecords: [...existingDeletes, ...queueDeletes]
+    };
+    TutorTrackDB.setSettings(updatedSettings);
+
+    set({ 
+      students: updated, 
+      schedules: updatedSchedules,
+      settings: updatedSettings
+    });
     get().addNotification('Student Removed', 'Related scheduling slots and records cleared.', 'system');
   },
 
@@ -158,7 +182,15 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   deleteSchedule: (id) => {
     const updated = get().schedules.filter(sc => sc.id !== id);
     TutorTrackDB.setSchedules(updated);
-    set({ schedules: updated });
+
+    const existingDeletes = get().settings.deletedRecords || [];
+    const updatedSettings = {
+      ...get().settings,
+      deletedRecords: [...existingDeletes, { id, collectionName: 'schedules' as const }]
+    };
+    TutorTrackDB.setSettings(updatedSettings);
+
+    set({ schedules: updated, settings: updatedSettings });
   },
 
   duplicateSchedule: (id) => {
@@ -218,7 +250,15 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   deleteAttendance: (id) => {
     const updated = get().attendance.filter(at => at.id !== id);
     TutorTrackDB.setAttendance(updated);
-    set({ attendance: updated });
+
+    const existingDeletes = get().settings.deletedRecords || [];
+    const updatedSettings = {
+      ...get().settings,
+      deletedRecords: [...existingDeletes, { id, collectionName: 'attendance' as const }]
+    };
+    TutorTrackDB.setSettings(updatedSettings);
+
+    set({ attendance: updated, settings: updatedSettings });
   },
 
   // PAYMENT ACTIONS
@@ -267,7 +307,15 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   deletePayment: (id) => {
     const updated = get().payments.filter(py => py.id !== id);
     TutorTrackDB.setPayments(updated);
-    set({ payments: updated });
+
+    const existingDeletes = get().settings.deletedRecords || [];
+    const updatedSettings = {
+      ...get().settings,
+      deletedRecords: [...existingDeletes, { id, collectionName: 'payments' as const }]
+    };
+    TutorTrackDB.setSettings(updatedSettings);
+
+    set({ payments: updated, settings: updatedSettings });
   },
 
   // AUTOMATED BILLING GENERATION
@@ -336,15 +384,18 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     }));
 
     let firebaseResult: { success: boolean; error?: string } = { success: true };
-    const config = get().settings.firebaseConfig;
+    const config = getActiveConfig(get().settings.firebaseConfig);
+    const deletedRecords = get().settings.deletedRecords || [];
+    const userId = get().currentUser?.uid || 'tutor-default';
 
-    if (config && config.apiKey && config.projectId) {
+    if (isFirebaseConfigured(config)) {
       try {
-        const result = await syncLocalToFirebase(config, {
+        const result = await syncLocalToFirebase(config, userId, {
           students: get().students,
           schedules: get().schedules,
           attendance: get().attendance,
-          payments: get().payments
+          payments: get().payments,
+          deletedRecords
         });
         if (!result.success) {
           firebaseResult = { success: false, error: result.error };
@@ -395,14 +446,15 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
         ...state.settings,
         isSyncing: false,
         lastBackupTime: nowStr,
-        backupSuccessCount: state.settings.backupSuccessCount + 1
+        backupSuccessCount: state.settings.backupSuccessCount + 1,
+        deletedRecords: []
       }
     }));
 
     // Persist finalized settings
     TutorTrackDB.setSettings(get().settings);
 
-    if (config && config.apiKey && config.projectId) {
+    if (isFirebaseConfigured(config)) {
       get().addNotification('Firestore Sync Success', 'Successfully synchronized local tables to Firebase Firestore.', 'system');
     } else {
       get().addNotification('Backup Success', 'All local tuition backup modules successfully synced.', 'system');
@@ -417,8 +469,9 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   },
 
   triggerFirebasePull: async () => {
-    const config = get().settings.firebaseConfig;
-    if (!config || !config.apiKey || !config.projectId) {
+    const config = getActiveConfig(get().settings.firebaseConfig);
+    const userId = get().currentUser?.uid || 'tutor-default';
+    if (!isFirebaseConfigured(config)) {
       return { success: false, error: 'Firebase config is not found or incomplete under Settings.' };
     }
 
@@ -427,7 +480,7 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     }));
 
     try {
-      const result = await fetchFromFirebase(config);
+      const result = await fetchFromFirebase(config, userId);
       set(state => ({
         settings: { ...state.settings, isSyncing: false }
       }));

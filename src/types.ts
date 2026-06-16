@@ -56,6 +56,11 @@ export interface Payment {
   syncStatus: 'pending' | 'synced';
 }
 
+export interface DeletedRecord {
+  id: string;
+  collectionName: 'students' | 'schedules' | 'attendance' | 'payments';
+}
+
 export interface AppSettings {
   darkMode: boolean;
   pinLockEnabled: boolean;
@@ -73,6 +78,7 @@ export interface AppSettings {
     appId: string;
     firestoreDatabaseId?: string;
   };
+  deletedRecords?: DeletedRecord[];
 }
 
 export interface AppNotification {

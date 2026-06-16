@@ -330,6 +330,7 @@ export const TutorTrackDB = {
     lastBackupTime: 'Never',
     isSyncing: false,
     backupSuccessCount: 0,
+    deletedRecords: [],
   }),
   setSettings: (settings: AppSettings) => setStored('tt_settings', settings),
 
@@ -350,6 +351,7 @@ export const TutorTrackDB = {
       lastBackupTime: 'Never',
       isSyncing: false,
       backupSuccessCount: 0,
+      deletedRecords: [],
     });
     setStored('tt_notifications', []);
   }

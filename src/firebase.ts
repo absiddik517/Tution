@@ -1,5 +1,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User } from 'firebase/auth';
+import appletConfig from '../firebase-applet-config.json';
 
 export interface FirebaseConfig {
   apiKey: string;
@@ -11,46 +13,118 @@ export interface FirebaseConfig {
   firestoreDatabaseId?: string;
 }
 
+export function getActiveConfig(customConfig?: FirebaseConfig | null): FirebaseConfig {
+  if (customConfig && customConfig.apiKey && customConfig.projectId) {
+    return customConfig;
+  }
+  return appletConfig as FirebaseConfig;
+}
+
 export function isFirebaseConfigured(config: FirebaseConfig | null | undefined): boolean {
   return !!(config && config.apiKey && config.projectId);
 }
 
-export function getFirebaseDb(config: FirebaseConfig) {
+// Global cached instances
+let firebaseAppInstance: any = null;
+let firebaseDbInstance: any = null;
+let firebaseAuthInstance: any = null;
+
+export function initializeFirebase(customConfig?: FirebaseConfig | null) {
+  const config = getActiveConfig(customConfig);
   if (!isFirebaseConfigured(config)) {
-    throw new Error('Firebase is not configured. Please supply API Key and Project ID.');
+    return null;
   }
 
-  // Prevent multiple app initializations in React/Vite hot-reloading dev environment
-  let app;
-  if (getApps().length > 0) {
-    app = getApp();
-  } else {
-    app = initializeApp({
-      apiKey: config.apiKey,
-      authDomain: config.authDomain,
-      projectId: config.projectId,
-      storageBucket: config.storageBucket,
-      messagingSenderId: config.messagingSenderId,
-      appId: config.appId,
-    });
+  if (!firebaseAppInstance) {
+    if (getApps().length > 0) {
+      firebaseAppInstance = getApp();
+    } else {
+      firebaseAppInstance = initializeApp({
+        apiKey: config.apiKey,
+        authDomain: config.authDomain,
+        projectId: config.projectId,
+        storageBucket: config.storageBucket,
+        messagingSenderId: config.messagingSenderId,
+        appId: config.appId,
+      });
+    }
   }
 
-  return getFirestore(app, config.firestoreDatabaseId || '(default)');
+  if (!firebaseDbInstance) {
+    firebaseDbInstance = getFirestore(firebaseAppInstance, config.firestoreDatabaseId || '(default)');
+  }
+
+  if (!firebaseAuthInstance) {
+    firebaseAuthInstance = getAuth(firebaseAppInstance);
+  }
+
+  return {
+    app: firebaseAppInstance,
+    db: firebaseDbInstance,
+    auth: firebaseAuthInstance
+  };
+}
+
+// Quick getters
+export function getFirebaseDb(customConfig?: FirebaseConfig | null) {
+  const instances = initializeFirebase(customConfig);
+  if (!instances) {
+    throw new Error('Firebase could not be initialized. Please check config.');
+  }
+  return instances.db;
+}
+
+export function getFirebaseAuth(customConfig?: FirebaseConfig | null) {
+  const instances = initializeFirebase(customConfig);
+  if (!instances) {
+    throw new Error('Firebase could not be initialized. Please check config.');
+  }
+  return instances.auth;
+}
+
+const googleProvider = new GoogleAuthProvider();
+
+export async function signInWithGoogle(customConfig?: FirebaseConfig | null): Promise<User> {
+  const authInstance = getFirebaseAuth(customConfig);
+  googleProvider.setCustomParameters({
+    prompt: 'select_account'
+  });
+  const result = await signInWithPopup(authInstance, googleProvider);
+  return result.user;
+}
+
+export async function logOutFromFirebase(customConfig?: FirebaseConfig | null): Promise<void> {
+  const authInstance = getFirebaseAuth(customConfig);
+  await signOut(authInstance);
 }
 
 export async function syncLocalToFirebase(
   config: FirebaseConfig,
+  currentUserId: string,
   data: {
     students: any[];
     schedules: any[];
     attendance: any[];
     payments: any[];
+    deletedRecords?: { id: string; collectionName: string }[];
   }
 ): Promise<{ success: boolean; count: number; error?: string }> {
   try {
     const db = getFirebaseDb(config);
-    const userId = 'tutor-default'; // Shared or partitioned by user
+    const userId = currentUserId || 'tutor-default'; // Partitioned by active authenticated user ID
     let syncCount = 0;
+
+    // Process deletions if any exist
+    if (data.deletedRecords && data.deletedRecords.length > 0) {
+      for (const del of data.deletedRecords) {
+        try {
+          const docRef = doc(db, 'tutors', userId, del.collectionName, del.id);
+          await deleteDoc(docRef);
+        } catch (delError) {
+          console.error(`Failed to delete document ${del.id} from ${del.collectionName}:`, delError);
+        }
+      }
+    }
 
     // Helper to upload a collection to Firestore partitioned by the tutor's userId folder
     const syncCollection = async (collectionName: string, items: any[]) => {
@@ -80,7 +154,8 @@ export async function syncLocalToFirebase(
 }
 
 export async function fetchFromFirebase(
-  config: FirebaseConfig
+  config: FirebaseConfig,
+  currentUserId: string
 ): Promise<{
   success: boolean;
   data?: {
@@ -93,7 +168,7 @@ export async function fetchFromFirebase(
 }> {
   try {
     const db = getFirebaseDb(config);
-    const userId = 'tutor-default';
+    const userId = currentUserId || 'tutor-default';
 
     const fetchCollection = async (collectionName: string): Promise<any[]> => {
       const snap = await getDocs(collection(db, 'tutors', userId, collectionName));
@@ -118,3 +193,4 @@ export async function fetchFromFirebase(
     return { success: false, error: error?.message || 'Could not download from Firebase' };
   }
 }
+

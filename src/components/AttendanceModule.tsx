@@ -2,15 +2,16 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { Attendance } from '../types';
 import { 
-  Plus, Calendar, Clock, User, Filter, Search, Trash2, X, ClipboardCheck, ArrowUpRight, CheckSquare
+  Plus, Calendar, Clock, User, Filter, Search, Trash2, Edit3, X, ClipboardCheck, ArrowUpRight, CheckSquare
 } from 'lucide-react';
 
 export default function AttendanceModule() {
   const { 
-    attendance, students, addAttendance, deleteAttendance 
+    attendance, students, addAttendance, updateAttendance, deleteAttendance 
   } = useStore();
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingAttendance, setEditingAttendance] = useState<Attendance | null>(null);
   
   // Filtering states
   const [selectedStudentFilter, setSelectedStudentFilter] = useState('All');
@@ -49,6 +50,18 @@ export default function AttendanceModule() {
     setFormExitAt('16:30');
     setFormRemarks('');
     setFormError('');
+    setEditingAttendance(null);
+    setShowAddModal(true);
+  };
+
+  const handleStartEdit = (log: Attendance) => {
+    setEditingAttendance(log);
+    setFormStudentId(log.studentId);
+    setFormDate(log.date);
+    setFormEntryAt(log.entryAt);
+    setFormExitAt(log.exitAt);
+    setFormRemarks(log.remarks || '');
+    setFormError('');
     setShowAddModal(true);
   };
 
@@ -63,16 +76,23 @@ export default function AttendanceModule() {
       return;
     }
 
-    addAttendance({
+    const payload = {
       studentId: formStudentId,
       date: formDate,
       entryAt: formEntryAt,
       exitAt: formExitAt,
       duration: Math.round(calculatedDuration * 100) / 100,
       remarks: formRemarks.trim() || 'Standard revision slot.',
-    });
+    };
+
+    if (editingAttendance) {
+      updateAttendance(editingAttendance.id, payload);
+    } else {
+      addAttendance(payload);
+    }
 
     setShowAddModal(false);
+    setEditingAttendance(null);
   };
 
   // EXTRACT DYNAMIC MONTHS LISTED FOR DROPDOWN FILTER
@@ -114,14 +134,6 @@ export default function AttendanceModule() {
           <h2 className="text-xl font-bold text-slate-800">Attendance Log Register</h2>
           <p className="text-xs text-slate-400">Log private tuitions completed, audit teaching hours and output logs</p>
         </div>
-
-        <button 
-          onClick={handleOpenAdd}
-          disabled={activeStudents.length === 0}
-          className="px-4 py-2 bg-indigo-600 text-white font-semibold text-xs tracking-wider uppercase rounded-xl shadow-sm hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-        >
-          <Plus size={15} /> Log session attendance
-        </button>
       </div>
 
       {activeStudents.length === 0 && (
@@ -222,16 +234,16 @@ export default function AttendanceModule() {
             {filteredAttendance.map(log => {
               const student = students.find(s => s.id === log.studentId);
               return (
-                <div key={log.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-slate-200 transition">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-indigo-50 text-indigo-700 rounded-xl flex items-center justify-center font-bold">
+                <div key={log.id} className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-200 transition">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="w-10 h-10 bg-indigo-50 text-indigo-700 rounded-xl flex items-center justify-center font-bold shrink-0">
                       {student?.name.charAt(0) || '?'}
                     </div>
 
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="font-bold text-sm text-slate-800">{student?.name || 'Unknown client'}</h4>
-                        <span className="text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">
+                        <h4 className="font-bold text-sm text-slate-800 truncate">{student?.name || 'Unknown client'}</h4>
+                        <span className="text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded shrink-0">
                           {student?.class}
                         </span>
                         {log.syncStatus === 'pending' && (
@@ -239,32 +251,42 @@ export default function AttendanceModule() {
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 text-xs mt-1.5 font-medium">
-                        <span className="flex items-center gap-1 text-slate-600 font-semibold bg-white border border-slate-100 px-2 py-0.5 rounded-lg shadow-sm">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 text-xs mt-1 font-medium">
+                        <span className="flex items-center gap-1 text-slate-650 font-semibold bg-white border border-slate-100 px-2 py-0.5 rounded-lg shadow-sm">
                           <Clock size={13} className="text-indigo-600" />
-                          {log.entryAt} - {log.exitAt} ({log.duration} hrs)
+                          {log.entryAt} - {log.exitAt}
                         </span>
                         <span className="text-slate-400">Date: <span className="text-slate-700 font-bold">{log.date}</span></span>
                       </div>
 
                       {log.remarks && (
-                        <p className="text-xs italic text-slate-400 mt-2">
+                        <p className="text-[11px] italic text-slate-400 mt-1">
                           📝 {log.remarks}
                         </p>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 border-t sm:border-t-0 pt-2 sm:pt-0">
+                  {/* Actions & Duration vertical block on right hand side */}
+                  <div className="flex sm:flex-col items-end justify-center gap-1 pt-2 sm:pt-0 shrink-0 border-t sm:border-t-0 border-slate-100">
+                    <div className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100/50 px-2 py-0.5 rounded-md">
+                      {log.duration} hrs
+                    </div>
                     <button
                       onClick={() => {
                         if (confirm(`Are you sure you want to permanently erase this attendance mark? This will update calculated invoice parameters.`)) {
                           deleteAttendance(log.id);
                         }
                       }}
-                      className="text-xs font-semibold text-slate-400 hover:text-red-600 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg border border-slate-100 hover:border-red-100 transition flex items-center gap-1 shrink-0 ml-auto"
+                      className="text-[11px] font-semibold text-slate-400 hover:text-red-650 transition flex items-center gap-1"
                     >
-                      <Trash2 size={13} /> Erase Log
+                      <Trash2 size={11} /> Delete
+                    </button>
+                    <button
+                      onClick={() => handleStartEdit(log)}
+                      className="text-[11px] font-semibold text-indigo-650 hover:text-indigo-900 transition flex items-center gap-1"
+                    >
+                      <Edit3 size={11} /> Edit
                     </button>
                   </div>
 
@@ -281,7 +303,9 @@ export default function AttendanceModule() {
           <div className="bg-white rounded-3xl w-full max-w-lg shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-800">New Attendance Entry</h3>
+                <h3 className="text-base font-bold text-slate-800">
+                  {editingAttendance ? 'Edit Attendance Entry' : 'New Attendance Entry'}
+                </h3>
                 <p className="text-xs text-slate-400 mt-0.5">Define session duration times and log student remarks</p>
               </div>
               <button 
@@ -382,7 +406,7 @@ export default function AttendanceModule() {
                   type="submit"
                   className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-xs shadow hover:bg-indigo-700 transition"
                 >
-                  Save Log
+                  {editingAttendance ? 'Save Changes' : 'Save Log'}
                 </button>
               </div>
 
@@ -390,6 +414,16 @@ export default function AttendanceModule() {
           </div>
         </div>
       )}
+
+      {/* Floating Log Session FAB */}
+      <button 
+        onClick={handleOpenAdd}
+        disabled={activeStudents.length === 0}
+        className="fixed bottom-6 right-6 z-40 bg-indigo-600 hover:bg-indigo-755 text-white p-4 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center border border-indigo-500/10"
+        title="Log session attendance"
+      >
+        <Plus size={24} className="stroke-[2.5]" />
+      </button>
 
     </div>
   );

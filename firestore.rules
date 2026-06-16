@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity validation blueprints
+    function isValidStudent(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             (!('class' in data) || (data.class is string && data.class.size() <= 100)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('paymentCycle' in data) || (data.paymentCycle is string && data.paymentCycle.size() <= 50)) &&
+             (!('monthlySalary' in data) || (data.monthlySalary is int || data.monthlySalary is float)) &&
+             (!('startDate' in data) || (data.startDate is string && data.startDate.size() <= 30)) &&
+             (!('status' in data) || (data.status is string && (data.status == 'Active' || data.status == 'Inactive'))) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+    }
+
+    function isValidSchedule(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             (!('weekday' in data) || (data.weekday is string && data.weekday.size() <= 20)) &&
+             (!('startTime' in data) || (data.startTime is string && data.startTime.size() <= 10)) &&
+             (!('endTime' in data) || (data.endTime is string && data.endTime.size() <= 10)) &&
+             (!('location' in data) || (data.location is string && data.location.size() <= 200)) &&
+             (!('subject' in data) || (data.subject is string && data.subject.size() <= 100)) &&
+             (!('remarks' in data) || (data.remarks is string && data.remarks.size() <= 1000)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+    }
+
+    function isValidAttendance(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             (!('date' in data) || (data.date is string && data.date.size() <= 20)) &&
+             (!('entryAt' in data) || (data.entryAt is string && data.entryAt.size() <= 10)) &&
+             (!('exitAt' in data) || (data.exitAt is string && data.exitAt.size() <= 10)) &&
+             (!('duration' in data) || (data.duration is int || data.duration is float)) &&
+             (!('remarks' in data) || (data.remarks is string && data.remarks.size() <= 1000)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+    }
+
+    function isValidPayment(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             (!('billingPeriod' in data) || (data.billingPeriod is string && data.billingPeriod.size() <= 50)) &&
+             (!('attendedDays' in data) || (data.attendedDays is int)) &&
+             (!('expectedDays' in data) || (data.expectedDays is int)) &&
+             (!('payableAmount' in data) || (data.payableAmount is int || data.payableAmount is float)) &&
+             (!('paidAmount' in data) || (data.paidAmount is int || data.paidAmount is float)) &&
+             (!('dueAmount' in data) || (data.dueAmount is int || data.dueAmount is float)) &&
+             (!('paymentDate' in data) || (data.paymentDate is string && data.paymentDate.size() <= 30)) &&
+             (!('status' in data) || (data.status is string && (data.status == 'Paid' || data.status == 'Partial' || data.status == 'Due'))) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+    }
+
+    // Secure user paths
+    match /tutors/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /students/{studentId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(studentId) && isValidStudent(incoming());
+        allow update: if isOwner(userId) && isValidStudent(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /schedules/{scheduleId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(scheduleId) && isValidSchedule(incoming());
+        allow update: if isOwner(userId) && isValidSchedule(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /attendance/{attendanceId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(attendanceId) && isValidAttendance(incoming());
+        allow update: if isOwner(userId) && isValidAttendance(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /payments/{paymentId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(paymentId) && isValidPayment(incoming());
+        allow update: if isOwner(userId) && isValidPayment(incoming());
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

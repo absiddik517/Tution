@@ -1,14 +1,78 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { 
-  Users, Calendar, Clock, DollarSign, ArrowUpRight, AlertTriangle, CheckCircle2, TrendingUp, BookOpen, Clock3, Save, X
+  Users, Calendar, Clock, DollarSign, ArrowUpRight, AlertTriangle, CheckCircle2, TrendingUp, BookOpen, Clock3, Save, X, Play, Square, Volume2
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell 
 } from 'recharts';
 
+// Programmatically generate 3 distinct sweet/warning synthesizers for time markers via Web Audio
+const playMilestoneSound = (minutes: number) => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const now = ctx.currentTime;
+
+    if (minutes === 40) {
+      // 40 Min Marker: Single elegant high-pitched crystal chime (A5 Note)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.7);
+    } else if (minutes === 60) {
+      // 60 Min Marker: Distinct sweet double ascending chime (C5 -> G5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, now);
+      gain1.gain.setValueAtTime(0.12, now);
+      gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.5);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(783.99, now + 0.15);
+      gain2.gain.setValueAtTime(0.12, now + 0.15);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.15);
+      osc2.stop(now + 0.7);
+    } else if (minutes === 80) {
+      // 80 Min Marker: Gentle warnings (three distinct triple organic warm notes)
+      const notes = [329.63, 349.23, 392.00]; // E4 -> F4 -> G4
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.22);
+        gain.gain.setValueAtTime(0.1, now + idx * 0.22);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.22 + 0.22);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.22);
+        osc.stop(now + idx * 0.22 + 0.25);
+      });
+    }
+  } catch (error) {
+    console.error('Failed to play synthesized sound milestone alert:', error);
+  }
+};
+
 export default function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void }) {
-  const { students, schedules, attendance, payments, addAttendance } = useStore();
+  const { students, schedules, attendance, payments, addAttendance, addNotification } = useStore();
 
   // 1. LIVE SESSION TIMER STATE
   const [sessionActive, setSessionActive] = useState(false);
@@ -16,6 +80,59 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const [showLogModal, setShowLogModal] = useState(false);
+  const [activeAlert, setActiveAlert] = useState<{ title: string; body: string } | null>(null);
+
+  // Auto-clear active toast alert after 10 seconds
+  useEffect(() => {
+    if (activeAlert) {
+      const timer = setTimeout(() => {
+        setActiveAlert(null);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeAlert]);
+
+  // Schedule session states of today: { [scheduleId: string]: 'idle' | 'running' | 'completed' }
+  const [scheduleSessions, setScheduleSessions] = useState<Record<string, 'idle' | 'running' | 'completed'>>(() => {
+    try {
+      const saved = localStorage.getItem('tt_schedule_sessions');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const updateScheduleSessionStatus = (scheduleId: string, status: 'idle' | 'running' | 'completed') => {
+    setScheduleSessions(prev => {
+      const updated = { ...prev };
+      if (status === 'running') {
+        // change any other running session back to idle
+        Object.keys(updated).forEach(key => {
+          if (updated[key] === 'running') {
+            updated[key] = 'idle';
+          }
+        });
+      }
+      updated[scheduleId] = status;
+      localStorage.setItem('tt_schedule_sessions', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  useEffect(() => {
+    const activeScheduleId = localStorage.getItem('tt_session_schedule_id');
+    const runningStart = localStorage.getItem('tt_session_started_at');
+    if (activeScheduleId && runningStart) {
+      setScheduleSessions(prev => {
+        if (prev[activeScheduleId] !== 'running') {
+          const updated = { ...prev, [activeScheduleId]: 'running' as const };
+          localStorage.setItem('tt_schedule_sessions', JSON.stringify(updated));
+          return updated;
+        }
+        return prev;
+      });
+    }
+  }, [sessionActive]);
 
   // Attendance Log Form Fields
   const [logDate, setLogDate] = useState('');
@@ -55,11 +172,70 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
     return () => clearInterval(interval);
   }, [sessionActive, startedAt]);
 
+  // Live session landmarks notification effect (40 min, 60 min, 80 min)
+  useEffect(() => {
+    if (!sessionActive || !selectedStudentId) {
+      localStorage.removeItem('tt_session_notified_landmarks');
+      return;
+    }
+
+    const studentName = students.find(s => s.id === selectedStudentId)?.name || 'Student';
+
+    // Read current notified landmarks
+    let notified: string[] = [];
+    try {
+      const saved = localStorage.getItem('tt_session_notified_landmarks');
+      if (saved) notified = JSON.parse(saved);
+    } catch {}
+
+    const checkAndNotify = (minutes: number, secondsLimit: number) => {
+      const key = minutes.toString();
+      if (timerSeconds >= secondsLimit && !notified.includes(key)) {
+        const title = `🚨 ${minutes}-Min Live Session Milestone`;
+        const body = `Active tuition session with ${studentName} has crossed ${minutes} minutes of lesson duration.`;
+        
+        addNotification(title, body, 'system');
+        setActiveAlert({ title, body });
+        playMilestoneSound(minutes);
+        
+        notified.push(key);
+        localStorage.setItem('tt_session_notified_landmarks', JSON.stringify(notified));
+      }
+    };
+
+    checkAndNotify(40, 2400); // 40 minutes = 2400s
+    checkAndNotify(60, 3600); // 60 minutes = 3600s
+    checkAndNotify(80, 4800); // 80 minutes = 4800s
+
+  }, [timerSeconds, sessionActive, selectedStudentId, students, addNotification]);
+
   const handleStartSession = () => {
     if (!selectedStudentId) return;
     const nowISO = new Date().toISOString();
     localStorage.setItem('tt_session_started_at', nowISO);
     localStorage.setItem('tt_session_student_id', selectedStudentId);
+    
+    // Attempt to match with today's scheduled class for this student
+    const matchedTodayClass = todayClasses.find(cl => cl.studentId === selectedStudentId);
+    if (matchedTodayClass) {
+      localStorage.setItem('tt_session_schedule_id', matchedTodayClass.id);
+      updateScheduleSessionStatus(matchedTodayClass.id, 'running');
+    }
+    
+    setStartedAt(nowISO);
+    setTimerSeconds(0);
+    setSessionActive(true);
+  };
+
+  const handleStartSessionForStudent = (studentId: string, scheduleId?: string) => {
+    const nowISO = new Date().toISOString();
+    localStorage.setItem('tt_session_started_at', nowISO);
+    localStorage.setItem('tt_session_student_id', studentId);
+    if (scheduleId) {
+      localStorage.setItem('tt_session_schedule_id', scheduleId);
+      updateScheduleSessionStatus(scheduleId, 'running');
+    }
+    setSelectedStudentId(studentId);
     setStartedAt(nowISO);
     setTimerSeconds(0);
     setSessionActive(true);
@@ -93,6 +269,11 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
 
   const handleDiscardSession = () => {
     if (confirm('Are you sure you want to discard this live session tracking?')) {
+      const activeScheduleId = localStorage.getItem('tt_session_schedule_id');
+      if (activeScheduleId) {
+        updateScheduleSessionStatus(activeScheduleId, 'idle');
+        localStorage.removeItem('tt_session_schedule_id');
+      }
       localStorage.removeItem('tt_session_started_at');
       localStorage.removeItem('tt_session_student_id');
       setSessionActive(false);
@@ -120,6 +301,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
       duration: logDuration,
       remarks: `${logSubject}: ${logRemarks}`
     });
+
+    const activeScheduleId = localStorage.getItem('tt_session_schedule_id');
+    if (activeScheduleId) {
+      updateScheduleSessionStatus(activeScheduleId, 'completed');
+      localStorage.removeItem('tt_session_schedule_id');
+    }
 
     // Clear session timer elements
     localStorage.removeItem('tt_session_started_at');
@@ -214,20 +401,88 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
 
   return (
     <div className="space-y-6" id="dashboard-tab">
-      {/* Top Banner Alert / Greeting */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between p-6 bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-2xl shadow-md gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Welcome Back, Tutor!</h2>
-          <p className="text-indigo-200 text-sm mt-1">
-            Tracking {activeStudents} active students and {todayClasses.length} sessions scheduled for today ({todayName}).
-          </p>
+      {/* Today's Class Schedule card replacing Welcome Back banner */}
+      <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm" id="widget-today-schedule">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <h3 className="font-extrabold text-slate-900 text-lg font-display">Today's Class Schedule</h3>
+            <p className="text-xs text-slate-400">Class slots mapped for this 24-hour cycle ({todayName})</p>
+          </div>
+          <span className="px-2.5 py-1 text-[9px] uppercase tracking-wider font-extrabold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-150">
+            {todayClasses.length} Scheduled
+          </span>
         </div>
-        <button 
-          onClick={() => onNavigate('schedules')}
-          className="px-4 py-2.5 bg-white text-indigo-950 font-medium text-xs tracking-wider uppercase rounded-xl shadow hover:bg-slate-50 transition flex items-center gap-1.5 self-start md:self-auto"
-        >
-          View Calendar <ArrowUpRight size={14} />
-        </button>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {todayClasses.length === 0 ? (
+            <div className="col-span-full text-center py-8 bg-slate-50 rounded-2xl text-slate-400 space-y-2 border border-slate-100">
+              <CheckCircle2 className="mx-auto text-emerald-500" size={32} />
+              <p className="text-sm font-semibold text-slate-800">Clear calendar today!</p>
+              <p className="text-xs">No active tuition sessions assigned for today.</p>
+            </div>
+          ) : (
+            todayClasses.map((cl, idx) => {
+              const student = students.find(s => s.id === cl.studentId);
+              // Alternating left-border indicators
+              const borderColors = [
+                'border-l-indigo-600 bg-slate-50', 
+                'border-l-emerald-500 bg-slate-50', 
+                'border-l-amber-500 bg-slate-50'
+              ];
+              const cardColorClass = borderColors[idx % borderColors.length];
+              const sessionStatus = scheduleSessions[cl.id] || 'idle';
+              
+              return (
+                <div key={cl.id} className={`p-4 rounded-2xl border border-slate-200 border-l-4 hover:border-slate-300 transition flex items-center justify-between gap-3 ${cardColorClass}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center font-black text-sm text-indigo-700 shadow-sm shrink-0 font-display">
+                      {student?.name.charAt(0) || 'S'}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-sm text-slate-900 truncate">{student?.name}</h4>
+                      <div className="flex items-center gap-1.5 text-slate-500 text-xs mt-0.5">
+                        <BookOpen size={12} className="text-slate-400 shrink-0" />
+                        <span className="truncate">{cl.subject} <span className="text-slate-400 font-normal">• {student?.class}</span></span>
+                      </div>
+                      <p className="text-[10px] text-indigo-700 mt-1 font-extrabold flex items-center gap-1 font-mono">
+                        ⏰ {cl.startTime} - {cl.endTime}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center justify-center">
+                    {sessionStatus === 'idle' && (
+                      <button 
+                        onClick={() => handleStartSessionForStudent(cl.studentId, cl.id)}
+                        className="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full transition hover:scale-110 active:scale-95 shadow-md flex items-center justify-center"
+                        title="Start Tuition Session"
+                      >
+                        <Play size={13} className="fill-white translate-x-[1px]" />
+                      </button>
+                    )}
+
+                    {sessionStatus === 'running' && (
+                      <button 
+                        onClick={handleStopSession}
+                        className="p-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-full transition hover:scale-110 active:scale-95 shadow-md flex items-center justify-center animate-pulse"
+                        title="Stop & Log Session"
+                      >
+                        <Square size={13} className="fill-white stroke-white" />
+                      </button>
+                    )}
+
+                    {sessionStatus === 'completed' && (
+                      <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-150 px-2.5 py-1 rounded-xl animate-in fade-in zoom-in duration-300">
+                        <CheckCircle2 size={13} className="text-emerald-600" />
+                        <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-widest font-mono leading-none">done!</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Dynamic Session tracking widget */}
@@ -277,11 +532,45 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
             <div className="flex-1">
               <span className="text-[10px] font-bold text-rose-500 uppercase tracking-widest block">In Session Counter active</span>
               <p className="text-sm font-bold text-slate-800 mt-1">
-                Currently teaching student: <span className="text-indigo-650 font-black">{students.find(s => s.id === selectedStudentId)?.name}</span>
+                Student: <span className="text-indigo-650 font-black">{students.find(s => s.id === selectedStudentId)?.name}</span>
               </p>
               <p className="text-xs text-slate-500 mt-1">
                 Started on {new Date(startedAt || '').toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}. Duration tracks automatically.
               </p>
+              
+              <div className="flex flex-wrap items-center gap-2 mt-3 select-none">
+                <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Milestone:</span>
+                <button 
+                  onClick={() => playMilestoneSound(40)}
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border transition flex items-center gap-1 hover:border-indigo-400 hover:scale-105 active:scale-95 ${
+                    timerSeconds >= 2400 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'
+                  }`}
+                  title="Preview 40-Min Crystal Chime"
+                >
+                  <span>{timerSeconds >= 2400 ? '✓' : '○'} 40m</span>
+                  <Volume2 size={10} className="text-slate-400 shrink-0" />
+                </button>
+                <button 
+                  onClick={() => playMilestoneSound(60)}
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border transition flex items-center gap-1 hover:border-indigo-400 hover:scale-105 active:scale-95 ${
+                    timerSeconds >= 3600 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'
+                  }`}
+                  title="Preview 60-Min Dual Chime"
+                >
+                  <span>{timerSeconds >= 3600 ? '✓' : '○'} 60m</span>
+                  <Volume2 size={10} className="text-slate-400 shrink-0" />
+                </button>
+                <button 
+                  onClick={() => playMilestoneSound(80)}
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border transition flex items-center gap-1 hover:border-indigo-400 hover:scale-105 active:scale-95 ${
+                    timerSeconds >= 4800 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'
+                  }`}
+                  title="Preview 80-Min Warning Chime"
+                >
+                  <span>{timerSeconds >= 4800 ? '✓' : '○'} 80m</span>
+                  <Volume2 size={10} className="text-slate-400 shrink-0" />
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center gap-2.5 self-center sm:self-auto">
@@ -467,123 +756,56 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
         </div>
       </div>
 
-      {/* Row showing Today's Schedule details vs Urgent Dues - SLEEK INTERFACE */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="dashboard-row-tables">
-        
-        {/* Today's Agenda list */}
-        <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm" id="widget-today-schedule">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-bold text-slate-805 text-base font-display">Today's Class Schedule</h3>
-              <p className="text-xs text-slate-400">Class slots mapped for this 24-hour cycle ({todayName})</p>
-            </div>
-            <span className="px-2.5 py-1 text-[9px] uppercase tracking-wider font-bold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
-              {todayClasses.length} Scheduled
-            </span>
+      {/* Outstanding Warning / Student Bill List - Beautiful Wide Layout */}
+      <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm" id="widget-pending-payments">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <h3 className="font-extrabold text-slate-900 text-base font-display">Urgent Pending Payments</h3>
+            <p className="text-xs text-slate-400">Students with outstanding invoice amounts requiring resolution</p>
           </div>
-
-          <div className="space-y-3 max-h-76 overflow-y-auto pr-1">
-            {todayClasses.length === 0 ? (
-              <div className="text-center py-10 bg-slate-50 rounded-2xl text-slate-400 space-y-2">
-                <CheckCircle2 className="mx-auto text-emerald-500" size={32} />
-                <p className="text-sm font-semibold text-slate-800">Clear calendar today!</p>
-                <p className="text-xs">No active tuition sessions assigned for today.</p>
-              </div>
-            ) : (
-              todayClasses.map((cl, idx) => {
-                const student = students.find(s => s.id === cl.studentId);
-                // Alternating elegant left-border indicators
-                const borderColors = [
-                  'border-l-indigo-600 bg-slate-50', 
-                  'border-l-emerald-500 bg-slate-50', 
-                  'border-l-amber-500 bg-slate-50'
-                ];
-                const cardColorClass = borderColors[idx % borderColors.length];
-                
-                return (
-                  <div key={cl.id} className={`p-4 rounded-xl border border-slate-205 border-l-4 hover:border-slate-300 transition flex items-center justify-between ${cardColorClass}`}>
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center font-bold text-sm text-indigo-700 shadow-sm">
-                        {student?.name.charAt(0) || 'S'}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-slate-900">{student?.name}</h4>
-                        <div className="flex items-center gap-1.5 text-slate-500 text-xs mt-1">
-                          <BookOpen size={12} className="text-slate-400" />
-                          <span>{cl.subject} <span className="text-slate-400">• {student?.class}</span></span>
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-0.5">📍 location: {cl.location}</p>
-                      </div>
-                    </div>
-
-                    <div className="text-right flex flex-col items-end">
-                      <span className="text-xs font-bold text-slate-800 block font-mono">{cl.startTime} - {cl.endTime}</span>
-                      <button 
-                        onClick={() => onNavigate('attendance')}
-                        className="mt-2 text-[9px] font-bold text-indigo-650 hover:text-indigo-800 tracking-wider inline-block uppercase hover:underline"
-                      >
-                        LOG ATTENDANCE
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+          <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 border border-rose-100">
+            <AlertTriangle size={15} />
           </div>
         </div>
 
-        {/* Outstanding Warning / Student Bill List */}
-        <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm" id="widget-pending-payments">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-bold text-slate-805 text-base font-display">Urgent Pending Payments</h3>
-              <p className="text-xs text-slate-400">Students with outstanding invoice amounts</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {payments.filter(p => p.dueAmount > 0).length === 0 ? (
+            <div className="col-span-full text-center py-10 bg-slate-50 rounded-2xl text-slate-400 space-y-1 border border-slate-100">
+              <CheckCircle2 className="mx-auto text-emerald-500" size={30} />
+              <p className="text-sm font-semibold text-slate-700 font-display">Perfect Billing Status!</p>
+              <p className="text-xs">No pending tuitions require collection currently.</p>
             </div>
-            <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 border border-rose-100">
-              <AlertTriangle size={15} />
-            </div>
-          </div>
-
-          <div className="space-y-3 max-h-76 overflow-y-auto pr-1">
-            {payments.filter(p => p.dueAmount > 0).length === 0 ? (
-              <div className="text-center py-10 bg-slate-50 rounded-2xl text-slate-400 space-y-1">
-                <CheckCircle2 className="mx-auto text-emerald-500" size={30} />
-                <p className="text-sm font-semibold text-slate-700 font-display">Perfect Billing Status!</p>
-                <p className="text-xs">No pending tuitions require collection currently.</p>
-              </div>
-            ) : (
-              payments.filter(p => p.dueAmount > 0).map(pay => {
-                const student = students.find(st => st.id === pay.studentId);
-                return (
-                  <div key={pay.id} className="p-4 bg-rose-50/20 border border-rose-100 rounded-xl flex items-center justify-between transition hover:bg-rose-50/30">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm">{student?.name || 'Unknown Student'}</h4>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Billing Period: <span className="font-semibold text-slate-700">{pay.billingPeriod}</span>
-                      </p>
-                      <span className="text-[10px] font-bold tracking-wide text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full mt-2 inline-block border border-rose-100">
-                        Pending: ৳{pay.dueAmount} <span className="text-slate-400 font-normal">/ expected: ৳{pay.payableAmount}</span>
-                      </span>
-                    </div>
-
-                    <div className="text-right flex flex-col items-end">
-                      <span className="inline-block px-2.5 py-0.5 text-[9px] font-bold uppercase rounded-full bg-amber-50 text-amber-800 border border-amber-200">
-                        {pay.status}
-                      </span>
-                      <button 
-                        onClick={() => onNavigate('payments')}
-                        className="block mt-2.5 text-[9px] font-bold text-rose-600 hover:text-rose-800 transition tracking-wider uppercase hover:underline"
-                      >
-                        COLLECT BALANCE
-                      </button>
-                    </div>
+          ) : (
+            payments.filter(p => p.dueAmount > 0).map(pay => {
+              const student = students.find(st => st.id === pay.studentId);
+              return (
+                <div key={pay.id} className="p-4 bg-rose-50/25 border border-rose-100 rounded-2xl flex items-center justify-between transition hover:bg-rose-50/30 gap-4">
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-slate-905 text-sm text-slate-900 truncate">{student?.name || 'Unknown Student'}</h4>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Billing Period: <span className="font-semibold text-slate-700">{pay.billingPeriod}</span>
+                    </p>
+                    <span className="text-[10px] font-bold tracking-wide text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full mt-2 inline-block border border-rose-100 font-mono">
+                      Pending: ৳{pay.dueAmount} <span className="text-slate-405 font-normal text-slate-400">/ expected: ৳{pay.payableAmount}</span>
+                    </span>
                   </div>
-                );
-              })
-            )}
-          </div>
-        </div>
 
+                  <div className="text-right flex flex-col items-end shrink-0 select-none">
+                    <span className="inline-block px-2.5 py-0.5 text-[9px] font-bold uppercase rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                      {pay.status}
+                    </span>
+                    <button 
+                      onClick={() => onNavigate('payments')}
+                      className="block mt-2.5 text-[9px] font-bold text-rose-600 hover:text-rose-850 transition tracking-wider uppercase hover:underline"
+                    >
+                      COLLECT BALANCE
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Log Session Attendance Modal */}
@@ -701,6 +923,32 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-in custom Toast container for live session landmarks */}
+      {activeAlert && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-slate-900 border border-slate-800 text-white p-4.5 rounded-2xl shadow-2xl flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-450 opacity-75 bg-rose-500"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+              </span>
+              <p className="text-[10px] uppercase tracking-widest font-extrabold text-indigo-400">Class Alert Triggered</p>
+            </div>
+            <button 
+              onClick={() => setActiveAlert(null)}
+              className="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800"
+              title="Close notification"
+            >
+              <X size={13} />
+            </button>
+          </div>
+          <div>
+            <h4 className="font-extrabold text-sm text-slate-100">{activeAlert.title}</h4>
+            <p className="text-xs text-slate-400 mt-1">{activeAlert.body}</p>
           </div>
         </div>
       )}

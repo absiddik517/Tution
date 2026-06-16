@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from './store';
 import { 
-  Users, Calendar, Clock, DollarSign, CloudLightning, ShieldCheck, ShieldAlert, KeyRound, Bell, Settings, LogOut, CheckCircle, Unlock, Smartphone, Monitor, ChevronRight, Menu, X, NotebookText, HelpCircle
+  Users, Calendar, Clock, DollarSign, CloudLightning, ShieldCheck, ShieldAlert, KeyRound, Bell, Settings, LogOut, CheckCircle, Unlock, Smartphone, Monitor, ChevronRight, Menu, X, NotebookText, HelpCircle, LogIn
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import StudentModule from './components/StudentModule';
@@ -9,11 +9,14 @@ import ScheduleModule from './components/ScheduleModule';
 import AttendanceModule from './components/AttendanceModule';
 import PaymentModule from './components/PaymentModule';
 import SettingsModule from './components/SettingsModule';
+import { initializeFirebase, signInWithGoogle, logOutFromFirebase } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
   const { 
     settings, notifications, students, schedules, attendance, payments, 
-    markNotificationRead, clearNotifications, triggerManualSync 
+    markNotificationRead, clearNotifications, triggerManualSync,
+    currentUser, setCurrentUser
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'schedules' | 'attendance' | 'payments' | 'settings'>('dashboard');
@@ -24,8 +27,28 @@ export default function App() {
   const [showNotificationCenter, setShowNotificationCenter] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
+  // Auth synchronization states
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [proceedAsOffline, setProceedAsOffline] = useState<boolean>(() => {
+    return localStorage.getItem('tutortrack_guest_sandbox') === 'true';
+  });
+
   // Alarm clock ticking tracking state
   const [currentTimeState, setCurrentTimeState] = useState<string>('');
+
+  // Setup reactive auth state listener
+  useEffect(() => {
+    const instances = initializeFirebase(settings.firebaseConfig);
+    if (instances && instances.auth) {
+      const unsubscribe = onAuthStateChanged(instances.auth, (user) => {
+        setCurrentUser(user);
+        setIsAuthLoading(false);
+      });
+      return unsubscribe;
+    } else {
+      setIsAuthLoading(false);
+    }
+  }, [settings.firebaseConfig, setCurrentUser]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -118,6 +141,74 @@ export default function App() {
       default: return <Dashboard onNavigate={(tab: any) => setActiveTab(tab)} />;
     }
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-xs text-slate-400 font-mono tracking-widest uppercase">Initializing Secure Auth Layer...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser && !proceedAsOffline) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 font-sans text-slate-800">
+        <div className="w-full max-w-sm bg-white border border-slate-200 rounded-[32px] p-6 space-y-6 shadow-xl relative overflow-hidden">
+          
+          {/* Header branding block */}
+          <div className="text-center space-y-3">
+            <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-indigo-100 text-white font-black text-xl font-display">
+              TT
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-black font-display tracking-tight text-slate-900">TutorTrack Secure Login</h2>
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">Access your personalized pupil database, weekly schedules, and financial registers from any device.</p>
+            </div>
+          </div>
+
+          {/* Secure login action rows */}
+          <div className="space-y-3.5">
+            <button
+              onClick={async () => {
+                try {
+                  await signInWithGoogle(settings.firebaseConfig);
+                } catch (err: any) {
+                  alert(`Google account login has failed/concluded: ${err?.message || String(err)}`);
+                }
+              }}
+              className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2.5 transition active:scale-98"
+            >
+              <LogIn size={14} />
+              Sign In securely with Google
+            </button>
+
+            <div className="relative py-1 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
+              <span className="relative bg-white px-3 text-[9px] uppercase font-bold tracking-widest text-slate-400">or alternative</span>
+            </div>
+
+            <button
+              onClick={() => {
+                localStorage.setItem('tutortrack_guest_sandbox', 'true');
+                setProceedAsOffline(true);
+              }}
+              className="w-full py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98"
+            >
+              Enter Temporary Offline Sandbox
+            </button>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-100 p-3 rounded-2xl text-[9.5px] text-slate-500 leading-normal space-y-1">
+            <p className="font-extrabold uppercase text-slate-705 text-slate-700 tracking-wide">🔐 Security Information</p>
+            <p>Cloud synchronization utilizes isolated customer sandbox namespaces. Pure guest sandbox is retained in standard safe browser storage parameters on your local terminal.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLocked) {
     return (
@@ -249,13 +340,62 @@ export default function App() {
 
           {/* Profile block matching the design HTML */}
           <div className="flex items-center gap-3 hidden sm:flex" id="tutor-profile-widget">
-            <div className="text-right">
-              <p className="text-xs font-bold text-slate-900">Dr. Sarah Mitchell</p>
-              <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-tighter">Senior Mathematics Tutor</p>
-            </div>
-            <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 shadow-sm flex items-center justify-center text-[10px] font-extrabold text-indigo-700">
-              SM
-            </div>
+            {currentUser ? (
+              <>
+                <div className="text-right">
+                  <p className="text-xs font-bold text-slate-900">{currentUser.displayName || currentUser.email || 'Dr. Sarah Mitchell'}</p>
+                  <p className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-tighter">● CLOUD SYNC ACTIVE</p>
+                </div>
+                {currentUser.photoURL ? (
+                  <img 
+                    src={currentUser.photoURL} 
+                    alt="avatar" 
+                    referrerPolicy="no-referrer"
+                    className="w-9 h-9 rounded-full border border-slate-200 shadow-sm object-cover"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-indigo-100 border border-slate-200 shadow-sm flex items-center justify-center text-[10px] font-extrabold text-indigo-700">
+                    {currentUser.displayName ? currentUser.displayName.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : 'SM'}
+                  </div>
+                )}
+                <button
+                  onClick={async () => {
+                    try {
+                      await logOutFromFirebase(settings.firebaseConfig);
+                    } catch (e: any) {
+                      alert(e?.message || 'Error logging out');
+                    }
+                  }}
+                  className="p-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 rounded-lg border transition-all"
+                  title="Sign Out from Cloud"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-right">
+                  <p className="text-xs font-bold text-slate-900">Guest Tutor</p>
+                  <p className="text-[9px] text-amber-600 font-extrabold uppercase tracking-tighter">● OFFLINE LOCAL MODE</p>
+                </div>
+                <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 shadow-sm flex items-center justify-center text-[10px] font-extrabold text-slate-500 animate-pulse">
+                  GT
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      await signInWithGoogle(settings.firebaseConfig);
+                    } catch (e: any) {
+                      alert(`Login closed: ${e?.message || String(e)}`);
+                    }
+                  }}
+                  className="p-1 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg transition-all"
+                  title="Sign In with Google"
+                >
+                  Sign In
+                </button>
+              </>
+            )}
           </div>
 
           <div className="h-8 w-[1px] bg-slate-200 hidden sm:block"></div>
@@ -406,8 +546,44 @@ export default function App() {
               </div>
             </div>
 
-            <div className="pt-6 border-t border-slate-100 text-xs text-slate-400 font-medium">
-              Personal Tuition Management System
+            <div className="space-y-4 pt-6 mt-auto border-t border-slate-100">
+              {currentUser ? (
+                <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {currentUser.photoURL ? (
+                      <img src={currentUser.photoURL} alt="avatar" className="w-8 h-8 rounded-full border shrink-0" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs shrink-0 font-display">
+                        {currentUser.displayName ? currentUser.displayName[0] : 'U'}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-extrabold text-slate-800 truncate leading-tight">{currentUser.displayName || currentUser.email}</p>
+                      <p className="text-[9px] text-emerald-600 font-bold uppercase tracking-wide">Sync Connected</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => logOutFromFirebase(settings.firebaseConfig)}
+                    className="p-1 px-1.5 bg-slate-200 hover:bg-slate-300 text-[9px] font-bold text-slate-650 text-slate-700 rounded border shrink-0"
+                  >
+                    Out
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-slate-50 p-3 rounded-xl border text-center space-y-2">
+                  <p className="text-[10px] text-slate-500 font-medium leading-none">Running in Offline sandbox mode</p>
+                  <button
+                    onClick={() => signInWithGoogle(settings.firebaseConfig)}
+                    className="w-full py-1.5 bg-indigo-650 bg-indigo-600 hover:bg-indigo-750 text-white rounded-lg text-[9px] font-extrabold transition-all"
+                  >
+                    Sync to Google Cloud
+                  </button>
+                </div>
+              )}
+
+              <div className="text-[10px] text-slate-400 font-medium leading-none">
+                Personal Tuition Management System
+              </div>
             </div>
           </div>
         </div>
@@ -475,15 +651,50 @@ export default function App() {
             <p className="text-[10px] opacity-70 text-slate-300">Local Engine: {students.length + schedules.length + attendance.length + payments.length} cached records</p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs">
-            {settings.pinLockEnabled ? (
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            ) : (
-              <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+          <div className="space-y-1.5">
+            {currentUser && (
+              <div className="bg-emerald-50/50 border border-emerald-100 p-2 text-[10px] text-emerald-800 rounded-xl flex items-center gap-2 mb-2 font-medium">
+                {currentUser.photoURL ? (
+                  <img src={currentUser.photoURL} alt="a" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-5 h-5 bg-emerald-250 text-emerald-800 font-bold flex items-center justify-center rounded-full text-[8px]">U</div>
+                )}
+                <div className="min-w-0 select-none">
+                  <p className="font-extrabold truncate leading-tight">{currentUser.displayName}</p>
+                  <p className="text-[8px] opacity-75">Cloud Synced Profile</p>
+                </div>
+              </div>
             )}
-            <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider">
-              {settings.pinLockEnabled ? 'PIN lock active' : 'no pin lock set'}
-            </span>
+
+            <div className="flex items-center gap-2 text-xs">
+              <div className={`w-1.5 h-1.5 rounded-full ${currentUser ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+              <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider">
+                {currentUser ? 'Cloud Backup Linked' : 'Offline Sandbox'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              {settings.pinLockEnabled ? (
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              ) : (
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+              )}
+              <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider">
+                {settings.pinLockEnabled ? 'PIN lock active' : 'no pin lock set'}
+              </span>
+            </div>
+
+            {!currentUser && (
+              <button
+                onClick={() => {
+                  localStorage.removeItem('tutortrack_guest_sandbox');
+                  setProceedAsOffline(false);
+                }}
+                className="text-[9.5px] text-indigo-650 hover:text-indigo-750 text-indigo-600 font-extrabold uppercase block select-none"
+              >
+                🔐 Open Sign In Portal
+              </button>
+            )}
           </div>
 
           <div className="text-[9px] text-slate-400 font-medium leading-none">

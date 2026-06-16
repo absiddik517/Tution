@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "Student details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "class": { "type": "string" },
+        "subjects": { "type": "array" },
+        "phone": { "type": "string" },
+        "paymentCycle": { "type": "string" },
+        "monthlySalary": { "type": "number" },
+        "startDate": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "syncStatus": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Schedule": {
+      "title": "Schedule",
+      "description": "Weekly tutoring schedule slot",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "weekday": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "location": { "type": "string" },
+        "subject": { "type": "string" },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "syncStatus": { "type": "string" }
+      },
+      "required": ["id", "studentId"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Tutoring session attendance log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "date": { "type": "string" },
+        "entryAt": { "type": "string" },
+        "exitAt": { "type": "string" },
+        "duration": { "type": "number" },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "syncStatus": { "type": "string" }
+      },
+      "required": ["id", "studentId", "date"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Billing and payment records for a student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "billingPeriod": { "type": "string" },
+        "attendedDays": { "type": "number" },
+        "expectedDays": { "type": "number" },
+        "payableAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "dueAmount": { "type": "number" },
+        "paymentDate": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "syncStatus": { "type": "string" }
+      },
+      "required": ["id", "studentId", "billingPeriod"]
+    }
+  },
+  "firestore": {
+    "/tutors/{userId}/students/{studentId}": {
+      "schema": "Student",
+      "description": "Student roster partition"
+    },
+    "/tutors/{userId}/schedules/{scheduleId}": {
+      "schema": "Schedule",
+      "description": "Planner schedule records"
+    },
+    "/tutors/{userId}/attendance/{attendanceId}": {
+      "schema": "Attendance",
+      "description": "Individual attendance sessions"
+    },
+    "/tutors/{userId}/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Financial billing history logs"
+    }
+  }
+}
