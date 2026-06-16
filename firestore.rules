@@ -16,6 +16,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isAllowedUser(userId) {
+      return userId == 'tutor-default' || isOwner(userId);
+    }
+
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -88,34 +92,34 @@ service cloud.firestore {
 
     // Secure user paths
     match /tutors/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isAllowedUser(userId);
 
       match /students/{studentId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(studentId) && isValidStudent(incoming());
-        allow update: if isOwner(userId) && isValidStudent(incoming());
-        allow delete: if isOwner(userId);
+        allow read: if isAllowedUser(userId);
+        allow create: if isAllowedUser(userId) && isValidId(studentId) && isValidStudent(incoming());
+        allow update: if isAllowedUser(userId) && isValidStudent(incoming());
+        allow delete: if isAllowedUser(userId);
       }
 
       match /schedules/{scheduleId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(scheduleId) && isValidSchedule(incoming());
-        allow update: if isOwner(userId) && isValidSchedule(incoming());
-        allow delete: if isOwner(userId);
+        allow read: if isAllowedUser(userId);
+        allow create: if isAllowedUser(userId) && isValidId(scheduleId) && isValidSchedule(incoming());
+        allow update: if isAllowedUser(userId) && isValidSchedule(incoming());
+        allow delete: if isAllowedUser(userId);
       }
 
       match /attendance/{attendanceId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(attendanceId) && isValidAttendance(incoming());
-        allow update: if isOwner(userId) && isValidAttendance(incoming());
-        allow delete: if isOwner(userId);
+        allow read: if isAllowedUser(userId);
+        allow create: if isAllowedUser(userId) && isValidId(attendanceId) && isValidAttendance(incoming());
+        allow update: if isAllowedUser(userId) && isValidAttendance(incoming());
+        allow delete: if isAllowedUser(userId);
       }
 
       match /payments/{paymentId} {
-        allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(paymentId) && isValidPayment(incoming());
-        allow update: if isOwner(userId) && isValidPayment(incoming());
-        allow delete: if isOwner(userId);
+        allow read: if isAllowedUser(userId);
+        allow create: if isAllowedUser(userId) && isValidId(paymentId) && isValidPayment(incoming());
+        allow update: if isAllowedUser(userId) && isValidPayment(incoming());
+        allow delete: if isAllowedUser(userId);
       }
     }
   }

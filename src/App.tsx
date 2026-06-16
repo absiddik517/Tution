@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from './store';
 import { 
-  Users, Calendar, Clock, DollarSign, CloudLightning, ShieldCheck, ShieldAlert, KeyRound, Bell, Settings, LogOut, CheckCircle, Unlock, Smartphone, Monitor, ChevronRight, Menu, X, NotebookText, HelpCircle, LogIn
+  Users, Calendar, Clock, DollarSign, CloudLightning, ShieldCheck, ShieldAlert, KeyRound, Bell, Settings, LogOut, CheckCircle, Unlock, Smartphone, Monitor, ChevronRight, Menu, X, NotebookText, HelpCircle, LogIn, RotateCcw, Cloud
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import StudentModule from './components/StudentModule';
@@ -15,7 +15,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 export default function App() {
   const { 
     settings, notifications, students, schedules, attendance, payments, 
-    markNotificationRead, clearNotifications, triggerManualSync,
+    markNotificationRead, clearNotifications, triggerManualSync, undoLocalChange,
     currentUser, setCurrentUser
   } = useStore();
 
@@ -25,6 +25,7 @@ export default function App() {
   const [pinEntry, setPinEntry] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
   const [showNotificationCenter, setShowNotificationCenter] = useState<boolean>(false);
+  const [showSyncCenter, setShowSyncCenter] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
   // Auth synchronization states
@@ -60,14 +61,110 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Sync state computed pendings
-  const totalPendingSyncs = useMemo(() => {
-    const s = students.filter(item => item.syncStatus === 'pending').length;
-    const c = schedules.filter(item => item.syncStatus === 'pending').length;
-    const a = attendance.filter(item => item.syncStatus === 'pending').length;
-    const p = payments.filter(item => item.syncStatus === 'pending').length;
-    return s + c + a + p;
-  }, [students, schedules, attendance, payments]);
+  // Categorize unsynced changes action-wise (Create, Update, Delete)
+  const unsyncedChanges = useMemo(() => {
+    const list: Array<{
+      id: string;
+      collectionName: 'students' | 'schedules' | 'attendance' | 'payments';
+      type: 'create' | 'update' | 'delete';
+      label: string;
+      sublabel: string;
+    }> = [];
+
+    // 1. DELETED records (tracked in settings.deletedRecords)
+    const deletes = settings.deletedRecords || [];
+    deletes.forEach(del => {
+      let label = `${del.collectionName.slice(0, -1).toUpperCase()} Deleted`;
+      let sublabel = `ID: ${del.id}`;
+
+      if (del.snapshot) {
+        if (del.collectionName === 'students') {
+          label = `Student: ${del.snapshot.name}`;
+          sublabel = `Deleted Class ${del.snapshot.class}`;
+        } else if (del.collectionName === 'schedules') {
+          label = `Class Slot: ${del.snapshot.subject}`;
+          sublabel = `Deleted ${del.snapshot.weekday} at ${del.snapshot.startTime}`;
+        } else if (del.collectionName === 'attendance') {
+          label = `Attendance Log: ${del.snapshot.date}`;
+          sublabel = `Deleted ${del.snapshot.duration} hr slot`;
+        } else if (del.collectionName === 'payments') {
+          label = `Invoice: ${del.snapshot.billingPeriod}`;
+          sublabel = `Deleted payment ledger item`;
+        }
+      }
+
+      list.push({
+        id: del.id,
+        collectionName: del.collectionName,
+        type: 'delete',
+        label,
+        sublabel
+      });
+    });
+
+    // 2. STUDENTS Pending (Created or Updated)
+    students.forEach((s) => {
+      if (s.syncStatus === 'pending') {
+        const isCreated = s.createdAt === s.updatedAt || !s.previousState;
+        list.push({
+          id: s.id,
+          collectionName: 'students',
+          type: isCreated ? 'create' : 'update',
+          label: `Student: ${s.name}`,
+          sublabel: isCreated ? `New student registration` : `Updated student profile`
+        });
+      }
+    });
+
+    // 3. SCHEDULES Pending
+    schedules.forEach((sc) => {
+      if (sc.syncStatus === 'pending') {
+        const isCreated = sc.createdAt === sc.updatedAt || !sc.previousState;
+        const stud = students.find(s => s.id === sc.studentId);
+        list.push({
+          id: sc.id,
+          collectionName: 'schedules',
+          type: isCreated ? 'create' : 'update',
+          label: `Class Details: ${sc.subject} (${stud ? stud.name : 'Active student'})`,
+          sublabel: isCreated ? `New slot: ${sc.weekday}s` : `Rescheduled class time`
+        });
+      }
+    });
+
+    // 4. ATTENDANCE Pending
+    attendance.forEach((at) => {
+      if (at.syncStatus === 'pending') {
+        const isCreated = at.createdAt === at.updatedAt || !at.previousState;
+        const stud = students.find(s => s.id === at.studentId);
+        list.push({
+          id: at.id,
+          collectionName: 'attendance',
+          type: isCreated ? 'create' : 'update',
+          label: `Attendance Log: ${stud ? stud.name : 'Active student'}`,
+          sublabel: isCreated ? `Logged ${at.duration} hr slot on ${at.date}` : `Updated entry/exit timing`
+        });
+      }
+    });
+
+    // 5. PAYMENTS Pending
+    payments.forEach((p) => {
+      if (p.syncStatus === 'pending') {
+        const isCreated = p.createdAt === p.updatedAt || !p.previousState;
+        const stud = students.find(s => s.id === p.studentId);
+        list.push({
+          id: p.id,
+          collectionName: 'payments',
+          type: isCreated ? 'create' : 'update',
+          label: `Invoice Period: ${p.billingPeriod} (${stud ? stud.name : 'Active student'})`,
+          sublabel: isCreated ? `Generated default billing cycle` : `Adjusted payment values`
+        });
+      }
+    });
+
+    return list;
+  }, [students, schedules, attendance, payments, settings.deletedRecords]);
+
+  const totalPendingSyncs = unsyncedChanges.length;
 
   // Lock code on starts if PIN Lock is globally enabled in setup
   useEffect(() => {
@@ -316,28 +413,6 @@ export default function App() {
 
         {/* Diagnostic System Widgets */}
         <div className="flex items-center gap-5">
-          {/* Active Cloud Sync block - styled exactly like the design HTML */}
-          <div 
-            onClick={triggerManualSync}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide border cursor-pointer select-none transition-all hover:scale-102 ${
-              totalPendingSyncs > 0 
-                ? 'bg-amber-50 border-amber-200 text-amber-700' 
-                : 'bg-emerald-50 border-emerald-100 text-emerald-700'
-            }`}
-            title="Synchronize offline local database changes immediately to Firebase"
-            id="cloud-backup-indicator"
-          >
-            <div className={`w-2 h-2 rounded-full ${totalPendingSyncs > 0 ? 'bg-amber-505 animate-bounce' : 'bg-emerald-500 animate-pulse'}`}></div>
-            <span className="hidden sm:inline">
-              {totalPendingSyncs > 0 ? `${totalPendingSyncs} Pending Syncs` : 'SYNCED: CLOUD BACKUP ACTIVE'}
-            </span>
-            <span className="sm:hidden">
-              {totalPendingSyncs > 0 ? 'PENDING' : 'SYNCED'}
-            </span>
-          </div>
-
-          <div className="h-8 w-[1px] bg-slate-200 hidden md:block"></div>
-
           {/* Profile block matching the design HTML */}
           <div className="flex items-center gap-3 hidden sm:flex" id="tutor-profile-widget">
             {currentUser ? (
@@ -413,10 +488,13 @@ export default function App() {
             </span>
           </button>
 
-          {/* Notification Button */}
+                    {/* Notification Button */}
           <div className="relative">
             <button 
-              onClick={() => setShowNotificationCenter(!showNotificationCenter)}
+              onClick={() => {
+                setShowNotificationCenter(!showNotificationCenter);
+                setShowSyncCenter(false);
+              }}
               className="p-1.5 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-50 transition shadow-none"
               id="notifications-indicator-bell"
             >
@@ -427,18 +505,18 @@ export default function App() {
                 </div>
               )}
             </button>
-
+ 
             {/* Notification drop-down panel dropdown list */}
             {showNotificationCenter && (
               <div className="absolute right-0 mt-3 bg-white border border-slate-200 w-80 rounded-2xl shadow-xl z-50 p-4 space-y-3 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between border-b border-slate-50 pb-2">
+                <div className="flex items-center justify-between border-b border-slate-400 pb-2">
                   <span className="text-xs font-extrabold text-slate-805 uppercase tracking-wider">Alert Center ({unreadCount})</span>
                   <div className="flex gap-2">
                     <button onClick={clearNotifications} className="text-[9px] font-bold text-rose-600 hover:underline">Clear logs</button>
                     <button onClick={() => setShowNotificationCenter(false)} className="text-[9px] font-bold text-slate-600 hover:underline">Close</button>
                   </div>
                 </div>
-
+ 
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                   {notifications.length === 0 ? (
                     <div className="text-center py-6 text-slate-400 text-xs">
@@ -463,6 +541,129 @@ export default function App() {
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sync Button */}
+          <div className="relative">
+            <button 
+              onClick={() => {
+                setShowSyncCenter(!showSyncCenter);
+                setShowNotificationCenter(false);
+              }}
+              className={`p-1.5 border rounded-xl hover:bg-slate-50 transition shadow-none relative ${
+                showSyncCenter ? 'bg-amber-50 border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500 hover:text-slate-800'
+              }`}
+              id="firebase-sync-trigger-btn"
+              title="Local Pending Database Syncs"
+            >
+              <CloudLightning size={14} className={settings.isSyncing ? "animate-bounce" : ""} />
+              {totalPendingSyncs > 0 && (
+                <div className="absolute -top-1 -right-1 bg-amber-600 text-white font-extrabold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                  {totalPendingSyncs}
+                </div>
+              )}
+            </button>
+
+            {/* Sync dropdown panel containing action wise pending changes & manual triggers */}
+            {showSyncCenter && (
+              <div 
+                className="absolute right-0 mt-3 bg-white border border-slate-200 w-85 sm:w-96 rounded-2xl shadow-xl z-50 p-4 space-y-3.5 animate-in fade-in duration-150"
+                id="sync-logs-popup-container"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Cloud className="text-slate-500" size={15} />
+                    <span className="text-xs font-extrabold text-slate-850 uppercase tracking-wider">Sync Control Queue</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-[10px] font-black uppercase py-0.5 px-2 bg-amber-100 text-amber-850 rounded-full">
+                      {totalPendingSyncs} Pending
+                    </span>
+                    <button 
+                      onClick={() => setShowSyncCenter(false)} 
+                      className="text-[9px] font-bold text-slate-500 hover:underline"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {unsyncedChanges.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400 space-y-2">
+                      <div className="mx-auto w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600 animate-bounce">
+                        <CheckCircle size={20} />
+                      </div>
+                      <p className="text-xs font-bold text-slate-600">Sync Pipeline Up-to-Date!</p>
+                      <p className="text-[10px] text-slate-500">All local changes are fully persistent on Cloud Firestore.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 text-xs">
+                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider pb-1">Un-synchronized Action Logs</p>
+                      {unsyncedChanges.map((item) => {
+                        let badgeBg = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+                        let actionLabel = 'Create';
+                        if (item.type === 'update') {
+                          badgeBg = 'bg-blue-50 text-blue-700 border-blue-100';
+                          actionLabel = 'Update';
+                        } else if (item.type === 'delete') {
+                          badgeBg = 'bg-rose-50 text-rose-700 border-rose-100';
+                          actionLabel = 'Delete';
+                        }
+
+                        return (
+                          <div 
+                            key={`${item.collectionName}-${item.type}-${item.id}`}
+                            className="bg-slate-50/60 hover:bg-slate-50 border border-slate-150 p-2.5 rounded-xl flex items-center justify-between gap-3 transition"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${badgeBg}`}>
+                                  {actionLabel}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                  {item.collectionName}
+                                </span>
+                              </div>
+                              <h5 className="font-extrabold text-slate-800 text-[11px] mt-1 truncate">{item.label}</h5>
+                              <p className="text-[10px] text-slate-500 leading-tight mt-0.5 truncate">{item.sublabel}</p>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                undoLocalChange(item.collectionName, item.id, item.type);
+                              }}
+                              className="py-1.5 px-2 bg-white hover:bg-rose-50 hover:text-rose-600 border border-slate-200 hover:border-rose-200 text-slate-500 font-bold text-[9px] uppercase tracking-wider rounded-lg transition shrink-0 flex items-center gap-1 shadow-sm"
+                              title="Revert change locally"
+                            >
+                              <RotateCcw size={9} />
+                              Undo
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100">
+                  <button
+                    disabled={settings.isSyncing || totalPendingSyncs === 0}
+                    onClick={async () => {
+                      try {
+                        await triggerManualSync();
+                      } catch (e: any) {
+                        alert(`Replication failure: ${e?.message || String(e)}`);
+                      }
+                    }}
+                    className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow flex items-center justify-center gap-2 select-none disabled:opacity-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+                  >
+                    <CloudLightning size={12} className={settings.isSyncing ? "animate-spin" : ""} />
+                    {settings.isSyncing ? 'Synchronizing Cloud...' : 'Sync Pending Items Now'}
+                  </button>
                 </div>
               </div>
             )}
@@ -740,7 +941,7 @@ export default function App() {
             </div>
 
             {/* Mobile Nav Top tab bar switcher inside preview */}
-            <div className="flex-1 flex flex-col overflow-y-auto bg-slate-50 overflow-x-hidden">
+            <div className="flex-1 flex flex-col overflow-y-auto bg-slate-50 overflow-x-hidden p-4">
               {renderActiveScreen()}
             </div>
 

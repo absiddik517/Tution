@@ -49,12 +49,16 @@ interface TutorTrackStore {
   triggerFirebasePull: () => Promise<{ success: boolean; error?: string }>;
   toggleDarkMode: () => void;
   setPinLock: (enabled: boolean, pin?: string) => void;
+  updateLandmarkAlerts: (first: number, second: number, third: number, sound1?: string, sound2?: string, sound3?: string) => void;
   clearDatabase: () => void;
   
   // Notification Management
   addNotification: (title: string, body: string, type: AppNotification['type']) => void;
   markNotificationRead: (id: string) => void;
   clearNotifications: () => void;
+
+  // Local Undo Change Action
+  undoLocalChange: (collectionName: 'students' | 'schedules' | 'attendance' | 'payments', id: string, changeType: 'create' | 'update' | 'delete') => void;
 
   // Export & Recovery
   importData: (imported: { students: Student[], schedules: Schedule[], attendance: Attendance[], payments: Payment[] }) => void;
@@ -98,11 +102,14 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     const now = new Date().toISOString();
     const updated: Student[] = get().students.map(s => {
       if (s.id === id) {
+        const isOriginallySynced = s.syncStatus === 'synced';
+        const prevSnapshot = isOriginallySynced && !s.previousState ? JSON.stringify(s) : s.previousState;
         return {
           ...s,
           ...updatedFields,
           updatedAt: now,
           syncStatus: 'pending' as const,
+          previousState: prevSnapshot,
         };
       }
       return s;
@@ -117,10 +124,10 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     
     const queueDeletes: any[] = [];
     if (deletedStudent) {
-      queueDeletes.push({ id: deletedStudent.id, collectionName: 'students' as const });
+      queueDeletes.push({ id: deletedStudent.id, collectionName: 'students' as const, snapshot: deletedStudent });
     }
     affectedSchedules.forEach(sc => {
-      queueDeletes.push({ id: sc.id, collectionName: 'schedules' as const });
+      queueDeletes.push({ id: sc.id, collectionName: 'schedules' as const, snapshot: sc });
     });
 
     const updated = get().students.filter(s => s.id !== id);
@@ -166,11 +173,14 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     const now = new Date().toISOString();
     const updated: Schedule[] = get().schedules.map(sc => {
       if (sc.id === id) {
+        const isOriginallySynced = sc.syncStatus === 'synced';
+        const prevSnapshot = isOriginallySynced && !sc.previousState ? JSON.stringify(sc) : sc.previousState;
         return {
           ...sc,
           ...updatedFields,
           updatedAt: now,
           syncStatus: 'pending' as const,
+          previousState: prevSnapshot,
         };
       }
       return sc;
@@ -180,13 +190,14 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   },
 
   deleteSchedule: (id) => {
+    const deleted = get().schedules.find(sc => sc.id === id);
     const updated = get().schedules.filter(sc => sc.id !== id);
     TutorTrackDB.setSchedules(updated);
 
     const existingDeletes = get().settings.deletedRecords || [];
     const updatedSettings = {
       ...get().settings,
-      deletedRecords: [...existingDeletes, { id, collectionName: 'schedules' as const }]
+      deletedRecords: [...existingDeletes, { id, collectionName: 'schedules' as const, snapshot: deleted }]
     };
     TutorTrackDB.setSettings(updatedSettings);
 
@@ -234,11 +245,14 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     const now = new Date().toISOString();
     const updated: Attendance[] = get().attendance.map(at => {
       if (at.id === id) {
+        const isOriginallySynced = at.syncStatus === 'synced';
+        const prevSnapshot = isOriginallySynced && !at.previousState ? JSON.stringify(at) : at.previousState;
         return {
           ...at,
           ...updatedFields,
           updatedAt: now,
           syncStatus: 'pending' as const,
+          previousState: prevSnapshot,
         };
       }
       return at;
@@ -248,13 +262,14 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   },
 
   deleteAttendance: (id) => {
+    const deleted = get().attendance.find(at => at.id === id);
     const updated = get().attendance.filter(at => at.id !== id);
     TutorTrackDB.setAttendance(updated);
 
     const existingDeletes = get().settings.deletedRecords || [];
     const updatedSettings = {
       ...get().settings,
-      deletedRecords: [...existingDeletes, { id, collectionName: 'attendance' as const }]
+      deletedRecords: [...existingDeletes, { id, collectionName: 'attendance' as const, snapshot: deleted }]
     };
     TutorTrackDB.setSettings(updatedSettings);
 
@@ -282,6 +297,8 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     const now = new Date().toISOString();
     const updated: Payment[] = get().payments.map(py => {
       if (py.id === id) {
+        const isOriginallySynced = py.syncStatus === 'synced';
+        const prevSnapshot = isOriginallySynced && !py.previousState ? JSON.stringify(py) : py.previousState;
         const payable = updatedFields.payableAmount !== undefined ? updatedFields.payableAmount : py.payableAmount;
         const paid = updatedFields.paidAmount !== undefined ? updatedFields.paidAmount : py.paidAmount;
         const due = payable - paid;
@@ -296,6 +313,7 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
           status: finalStatus,
           updatedAt: now,
           syncStatus: 'pending' as const,
+          previousState: prevSnapshot,
         };
       }
       return py;
@@ -305,13 +323,14 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   },
 
   deletePayment: (id) => {
+    const deleted = get().payments.find(py => py.id === id);
     const updated = get().payments.filter(py => py.id !== id);
     TutorTrackDB.setPayments(updated);
 
     const existingDeletes = get().settings.deletedRecords || [];
     const updatedSettings = {
       ...get().settings,
-      deletedRecords: [...existingDeletes, { id, collectionName: 'payments' as const }]
+      deletedRecords: [...existingDeletes, { id, collectionName: 'payments' as const, snapshot: deleted }]
     };
     TutorTrackDB.setSettings(updatedSettings);
 
@@ -531,6 +550,20 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     set({ settings: updatedSettings });
   },
 
+  updateLandmarkAlerts: (first, second, third, sound1, sound2, sound3) => {
+    const updatedSettings = {
+      ...get().settings,
+      landmarkFirstAlert: first,
+      landmarkSecondAlert: second,
+      landmarkThirdAlert: third,
+      landmarkFirstSound: sound1,
+      landmarkSecondSound: sound2,
+      landmarkThirdSound: sound3
+    };
+    TutorTrackDB.setSettings(updatedSettings);
+    set({ settings: updatedSettings });
+  },
+
   clearDatabase: () => {
     TutorTrackDB.resetDB();
     set({
@@ -568,6 +601,116 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   clearNotifications: () => {
     TutorTrackDB.setNotifications([]);
     set({ notifications: [] });
+  },
+
+  // LOCAL UNDO ACTION ENGINE
+  undoLocalChange: (collectionName, id, changeType) => {
+    if (changeType === 'create') {
+      if (collectionName === 'students') {
+        const updated = get().students.filter(s => s.id !== id);
+        TutorTrackDB.setStudents(updated);
+        set({ students: updated });
+        get().addNotification('Undo Creation', 'Student record local creation undone.', 'system');
+      } else if (collectionName === 'schedules') {
+        const updated = get().schedules.filter(sc => sc.id !== id);
+        TutorTrackDB.setSchedules(updated);
+        set({ schedules: updated });
+        get().addNotification('Undo Creation', 'Schedule slot creation undone.', 'system');
+      } else if (collectionName === 'attendance') {
+        const updated = get().attendance.filter(at => at.id !== id);
+        TutorTrackDB.setAttendance(updated);
+        set({ attendance: updated });
+        get().addNotification('Undo Creation', 'Attendance log creation undone.', 'system');
+      } else if (collectionName === 'payments') {
+        const updated = get().payments.filter(py => py.id !== id);
+        TutorTrackDB.setPayments(updated);
+        set({ payments: updated });
+        get().addNotification('Undo Creation', 'Payment ledger item creation undone.', 'system');
+      }
+    } else if (changeType === 'update') {
+      if (collectionName === 'students') {
+        const updated = get().students.map(s => {
+          if (s.id === id && s.previousState) {
+            try {
+              const restored = JSON.parse(s.previousState);
+              return { ...restored, syncStatus: 'synced' as const, previousState: undefined };
+            } catch (e) {}
+          }
+          return s;
+        });
+        TutorTrackDB.setStudents(updated);
+        set({ students: updated });
+        get().addNotification('Undo Update', 'Student record restored to original synced state.', 'system');
+      } else if (collectionName === 'schedules') {
+        const updated = get().schedules.map(sc => {
+          if (sc.id === id && sc.previousState) {
+            try {
+              const restored = JSON.parse(sc.previousState);
+              return { ...restored, syncStatus: 'synced' as const, previousState: undefined };
+            } catch (e) {}
+          }
+          return sc;
+        });
+        TutorTrackDB.setSchedules(updated);
+        set({ schedules: updated });
+        get().addNotification('Undo Update', 'Schedule slot restored to original synced state.', 'system');
+      } else if (collectionName === 'attendance') {
+        const updated = get().attendance.map(at => {
+          if (at.id === id && at.previousState) {
+            try {
+              const restored = JSON.parse(at.previousState);
+              return { ...restored, syncStatus: 'synced' as const, previousState: undefined };
+            } catch (e) {}
+          }
+          return at;
+        });
+        TutorTrackDB.setAttendance(updated);
+        set({ attendance: updated });
+        get().addNotification('Undo Update', 'Attendance record restored to original synced state.', 'system');
+      } else if (collectionName === 'payments') {
+        const updated = get().payments.map(py => {
+          if (py.id === id && py.previousState) {
+            try {
+              const restored = JSON.parse(py.previousState);
+              return { ...restored, syncStatus: 'synced' as const, previousState: undefined };
+            } catch (e) {}
+          }
+          return py;
+        });
+        TutorTrackDB.setPayments(updated);
+        set({ payments: updated });
+        get().addNotification('Undo Update', 'Payment record restored to original synced state.', 'system');
+      }
+    } else if (changeType === 'delete') {
+      const currentDeletes = get().settings.deletedRecords || [];
+      const recordToDelete = currentDeletes.find(d => d.id === id && d.collectionName === collectionName);
+      if (recordToDelete && recordToDelete.snapshot) {
+        const snapshot = recordToDelete.snapshot;
+        if (collectionName === 'students') {
+          const updated = [snapshot, ...get().students];
+          TutorTrackDB.setStudents(updated);
+          set({ students: updated });
+        } else if (collectionName === 'schedules') {
+          const updated = [...get().schedules, snapshot];
+          TutorTrackDB.setSchedules(updated);
+          set({ schedules: updated });
+        } else if (collectionName === 'attendance') {
+          const updated = [snapshot, ...get().attendance];
+          TutorTrackDB.setAttendance(updated);
+          set({ attendance: updated });
+        } else if (collectionName === 'payments') {
+          const updated = [snapshot, ...get().payments];
+          TutorTrackDB.setPayments(updated);
+          set({ payments: updated });
+        }
+
+        const updatedDeletes = currentDeletes.filter(d => !(d.id === id && d.collectionName === collectionName));
+        const updatedSettings = { ...get().settings, deletedRecords: updatedDeletes };
+        TutorTrackDB.setSettings(updatedSettings);
+        set({ settings: updatedSettings });
+        get().addNotification('Undo Deletion', 'Restored deleted record from local memory.', 'system');
+      }
+    }
   },
 
   // DATA RESTORE & RECOVERY MODULE

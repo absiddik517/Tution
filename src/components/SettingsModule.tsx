@@ -1,19 +1,30 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { 
-  CloudRain, ShieldAlert, ShieldCheck, Download, Upload, RotateCcw, CloudLightning, Shield, KeyRound, Monitor, Eye, EyeOff, Save, Trash2, FileSpreadsheet, RefreshCw
+  CloudRain, ShieldAlert, ShieldCheck, Download, Upload, RotateCcw, CloudLightning, Shield, KeyRound, Monitor, Eye, EyeOff, Save, Trash2, FileSpreadsheet, RefreshCw, Volume2
 } from 'lucide-react';
+import { SOUND_PRESETS, playSoundPreset } from '../sound';
 
 export default function SettingsModule() {
   const { 
     settings, students, schedules, attendance, payments, 
     toggleDarkMode, setPinLock, clearDatabase, triggerManualSync, importData,
-    saveFirebaseConfig, triggerFirebasePull
+    saveFirebaseConfig, triggerFirebasePull, updateLandmarkAlerts
   } = useStore();
 
   const [pinInput, setPinInput] = useState('');
   const [pinEnabledLocal, setPinEnabledLocal] = useState(settings.pinLockEnabled);
   const [showPinState, setShowPinState] = useState(false);
+
+  // Landmark alert custom threshold states
+  const [firstAlert, setFirstAlert] = useState(settings.landmarkFirstAlert ?? 40);
+  const [secondAlert, setSecondAlert] = useState(settings.landmarkSecondAlert ?? 60);
+  const [thirdAlert, setThirdAlert] = useState(settings.landmarkThirdAlert ?? 80);
+
+  // Sound preset states for alerts
+  const [firstSound, setFirstSound] = useState(settings.landmarkFirstSound ?? 'crystal');
+  const [secondSound, setSecondSound] = useState(settings.landmarkSecondSound ?? 'double');
+  const [thirdSound, setThirdSound] = useState(settings.landmarkThirdSound ?? 'triple');
 
   // Firebase Config Form State
   const [showConfigForm, setShowConfigForm] = useState(false);
@@ -84,6 +95,19 @@ export default function SettingsModule() {
     }
     setPinLock(pinEnabledLocal, pinEnabledLocal ? pinInput : '');
     alert('Security locks updated successfully.');
+  };
+
+  const handleSaveLandmarks = () => {
+    if (firstAlert <= 0 || secondAlert <= 0 || thirdAlert <= 0) {
+      alert('Alert times must be positive integer values.');
+      return;
+    }
+    if (firstAlert >= secondAlert || secondAlert >= thirdAlert) {
+      alert('Alert timing order should be successive (1st < 2nd < 3rd milestone).');
+      return;
+    }
+    updateLandmarkAlerts(firstAlert, secondAlert, thirdAlert, firstSound, secondSound, thirdSound);
+    alert('Session milestone timing and custom audio triggers saved successfully.');
   };
 
   // CSV Export utility
@@ -207,6 +231,30 @@ export default function SettingsModule() {
               <span>Sync Sessions:</span>
               <span className="text-indigo-600 font-extrabold">{settings.backupSuccessCount} uploads</span>
             </div>
+
+            {pendingCount > 0 && (
+              <div className="pt-2.5 border-t border-slate-200 space-y-1.5 mt-2">
+                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 font-sans">Unsynced Item Breakdown</div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-500 font-sans">
+                  <div className="bg-amber-50/70 p-2 rounded-xl border border-amber-100/50 flex justify-between items-center">
+                    <span>Students:</span>
+                    <span className="text-xs text-amber-800">{students.filter(s => s.syncStatus === 'pending').length}</span>
+                  </div>
+                  <div className="bg-amber-50/70 p-2 rounded-xl border border-amber-100/50 flex justify-between items-center">
+                    <span>Schedules:</span>
+                    <span className="text-xs text-amber-800">{schedules.filter(s => s.syncStatus === 'pending').length}</span>
+                  </div>
+                  <div className="bg-amber-50/70 p-2 rounded-xl border border-amber-100/50 flex justify-between items-center">
+                    <span>Attendance:</span>
+                    <span className="text-xs text-amber-800">{attendance.filter(s => s.syncStatus === 'pending').length}</span>
+                  </div>
+                  <div className="bg-amber-50/70 p-2 rounded-xl border border-amber-100/50 flex justify-between items-center">
+                    <span>Payments:</span>
+                    <span className="text-xs text-amber-800">{payments.filter(s => s.syncStatus === 'pending').length}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Toggle buttons to configure or pull */}
@@ -357,6 +405,151 @@ export default function SettingsModule() {
             className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
           >
             <Save size={13} /> Save Security Profile
+          </button>
+        </div>
+
+        {/* Session Landmark Alerts card */}
+        <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 border-b border-slate-50 pb-3">
+              <Volume2 className="text-indigo-600" size={18} />
+              <h3 className="font-bold text-slate-800 text-sm font-display">Session Landmark Alerts</h3>
+            </div>
+
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed font-sans">
+              Configure landmark notification triggers (in minutes) for live tuition sessions to track your class durations with distinctive synthesized tones.
+            </p>
+
+            <div className="grid grid-cols-3 gap-2.5 mt-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">1st Alert</label>
+                <div className="relative flex items-center">
+                  <input 
+                    type="number"
+                    min={1}
+                    value={firstAlert}
+                    onChange={(e) => setFirstAlert(Math.max(1, parseInt(e.target.value) || 0))}
+                    className="w-full text-xs font-bold p-2.5 pr-7 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-indigo-500 text-center text-slate-800"
+                  />
+                  <span className="absolute right-2 text-[10px] font-bold text-slate-400 pointer-events-none select-none">m</span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">2nd Alert</label>
+                <div className="relative flex items-center">
+                  <input 
+                    type="number"
+                    min={1}
+                    value={secondAlert}
+                    onChange={(e) => setSecondAlert(Math.max(1, parseInt(e.target.value) || 0))}
+                    className="w-full text-xs font-bold p-2.5 pr-7 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-indigo-500 text-center text-slate-800"
+                  />
+                  <span className="absolute right-2 text-[10px] font-bold text-slate-400 pointer-events-none select-none">m</span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">3rd Alert</label>
+                <div className="relative flex items-center">
+                  <input 
+                    type="number"
+                    min={1}
+                    value={thirdAlert}
+                    onChange={(e) => setThirdAlert(Math.max(1, parseInt(e.target.value) || 0))}
+                    className="w-full text-xs font-bold p-2.5 pr-7 border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-indigo-500 text-center text-slate-800"
+                  />
+                  <span className="absolute right-2 text-[10px] font-bold text-slate-400 pointer-events-none select-none">m</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Custom sound selectors */}
+            <div className="space-y-3 mt-4 pt-4 border-t border-slate-100">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Custom Alarm Tones</label>
+              
+              {/* 1st Alert sound */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-bold text-slate-400 w-14 shrink-0 font-sans">1st Alert:</label>
+                <select
+                  value={firstSound}
+                  onChange={(e) => {
+                    setFirstSound(e.target.value);
+                    playSoundPreset(e.target.value);
+                  }}
+                  className="flex-1 text-xs p-2 border border-slate-200 rounded-xl bg-white text-slate-800 font-bold focus:outline-none focus:border-indigo-500 font-sans cursor-pointer"
+                >
+                  {SOUND_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => playSoundPreset(firstSound)}
+                  className="p-1 px-1.5 border border-slate-200 hover:border-indigo-350 hover:bg-slate-55 rounded-xl text-indigo-600 transition flex-shrink-0"
+                  title="Test Alert Tone"
+                >
+                  <Volume2 size={13} />
+                </button>
+              </div>
+
+              {/* 2nd Alert sound */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-bold text-slate-400 w-14 shrink-0 font-sans">2nd Alert:</label>
+                <select
+                  value={secondSound}
+                  onChange={(e) => {
+                    setSecondSound(e.target.value);
+                    playSoundPreset(e.target.value);
+                  }}
+                  className="flex-1 text-xs p-2 border border-slate-200 rounded-xl bg-white text-slate-800 font-bold focus:outline-none focus:border-indigo-500 font-sans cursor-pointer"
+                >
+                  {SOUND_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => playSoundPreset(secondSound)}
+                  className="p-1 px-1.5 border border-slate-200 hover:border-indigo-350 hover:bg-slate-55 rounded-xl text-indigo-600 transition flex-shrink-0"
+                  title="Test Alert Tone"
+                >
+                  <Volume2 size={13} />
+                </button>
+              </div>
+
+              {/* 3rd Alert sound */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-bold text-slate-400 w-14 shrink-0 font-sans">3rd Alert:</label>
+                <select
+                  value={thirdSound}
+                  onChange={(e) => {
+                    setThirdSound(e.target.value);
+                    playSoundPreset(e.target.value);
+                  }}
+                  className="flex-1 text-xs p-2 border border-slate-200 rounded-xl bg-white text-slate-800 font-bold focus:outline-none focus:border-indigo-500 font-sans cursor-pointer"
+                >
+                  {SOUND_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => playSoundPreset(thirdSound)}
+                  className="p-1 px-1.5 border border-slate-200 hover:border-indigo-350 hover:bg-slate-55 rounded-xl text-indigo-600 transition flex-shrink-0"
+                  title="Test Alert Tone"
+                >
+                  <Volume2 size={13} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveLandmarks}
+            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+          >
+            <Save size={13} /> Save Landmark Alert Profiles
           </button>
         </div>
 

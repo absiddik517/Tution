@@ -11,6 +11,7 @@ export interface Student {
   createdAt: string;
   updatedAt: string;
   syncStatus: 'pending' | 'synced';
+  previousState?: string;
 }
 
 export interface Schedule {
@@ -25,6 +26,7 @@ export interface Schedule {
   createdAt: string;
   updatedAt: string;
   syncStatus: 'pending' | 'synced';
+  previousState?: string;
 }
 
 export interface Attendance {
@@ -38,6 +40,7 @@ export interface Attendance {
   createdAt: string;
   updatedAt: string;
   syncStatus: 'pending' | 'synced';
+  previousState?: string;
 }
 
 export interface Payment {
@@ -54,11 +57,13 @@ export interface Payment {
   createdAt: string;
   updatedAt: string;
   syncStatus: 'pending' | 'synced';
+  previousState?: string;
 }
 
 export interface DeletedRecord {
   id: string;
   collectionName: 'students' | 'schedules' | 'attendance' | 'payments';
+  snapshot?: any;
 }
 
 export interface AppSettings {
@@ -69,6 +74,12 @@ export interface AppSettings {
   lastBackupTime: string;
   isSyncing: boolean;
   backupSuccessCount: number;
+  landmarkFirstAlert?: number;
+  landmarkSecondAlert?: number;
+  landmarkThirdAlert?: number;
+  landmarkFirstSound?: string;
+  landmarkSecondSound?: string;
+  landmarkThirdSound?: string;
   firebaseConfig?: {
     apiKey: string;
     authDomain: string;

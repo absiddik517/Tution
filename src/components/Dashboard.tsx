@@ -1,78 +1,15 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { 
-  Users, Calendar, Clock, DollarSign, ArrowUpRight, AlertTriangle, CheckCircle2, TrendingUp, BookOpen, Clock3, Save, X, Play, Square, Volume2
+  Users, Calendar, Clock, DollarSign, ArrowUpRight, AlertTriangle, CheckCircle2, TrendingUp, BookOpen, Clock3, Save, X, Play, Square, Volume2, CloudLightning
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell 
 } from 'recharts';
-
-// Programmatically generate 3 distinct sweet/warning synthesizers for time markers via Web Audio
-const playMilestoneSound = (minutes: number) => {
-  try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    const now = ctx.currentTime;
-
-    if (minutes === 40) {
-      // 40 Min Marker: Single elegant high-pitched crystal chime (A5 Note)
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, now);
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.7);
-    } else if (minutes === 60) {
-      // 60 Min Marker: Distinct sweet double ascending chime (C5 -> G5)
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-      osc1.type = 'sine';
-      osc1.frequency.setValueAtTime(523.25, now);
-      gain1.gain.setValueAtTime(0.12, now);
-      gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
-      osc1.connect(gain1);
-      gain1.connect(ctx.destination);
-      osc1.start(now);
-      osc1.stop(now + 0.5);
-
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(783.99, now + 0.15);
-      gain2.gain.setValueAtTime(0.12, now + 0.15);
-      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start(now + 0.15);
-      osc2.stop(now + 0.7);
-    } else if (minutes === 80) {
-      // 80 Min Marker: Gentle warnings (three distinct triple organic warm notes)
-      const notes = [329.63, 349.23, 392.00]; // E4 -> F4 -> G4
-      notes.forEach((freq, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, now + idx * 0.22);
-        gain.gain.setValueAtTime(0.1, now + idx * 0.22);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.22 + 0.22);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now + idx * 0.22);
-        osc.stop(now + idx * 0.22 + 0.25);
-      });
-    }
-  } catch (error) {
-    console.error('Failed to play synthesized sound milestone alert:', error);
-  }
-};
+import { playSoundPreset } from '../sound';
 
 export default function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void }) {
-  const { students, schedules, attendance, payments, addAttendance, addNotification } = useStore();
+  const { students, schedules, attendance, payments, addAttendance, addNotification, settings, triggerManualSync } = useStore();
 
   // 1. LIVE SESSION TIMER STATE
   const [sessionActive, setSessionActive] = useState(false);
@@ -81,6 +18,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const [showLogModal, setShowLogModal] = useState(false);
   const [activeAlert, setActiveAlert] = useState<{ title: string; body: string } | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Auto-clear active toast alert after 10 seconds
   useEffect(() => {
@@ -143,6 +81,18 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
   const [logSubject, setLogSubject] = useState('');
   const [logError, setLogError] = useState('');
 
+  const m1 = settings.landmarkFirstAlert ?? 40;
+  const m2 = settings.landmarkSecondAlert ?? 60;
+  const m3 = settings.landmarkThirdAlert ?? 80;
+
+  const triggerMilestoneSound = (alertIndex: 1 | 2 | 3) => {
+    let preset = 'crystal';
+    if (alertIndex === 1) preset = settings.landmarkFirstSound || 'crystal';
+    if (alertIndex === 2) preset = settings.landmarkSecondSound || 'double';
+    if (alertIndex === 3) preset = settings.landmarkThirdSound || 'triple';
+    playSoundPreset(preset);
+  };
+
   const activeStudentsList = useMemo(() => students.filter(s => s.status === 'Active'), [students]);
 
   // Load from local storage
@@ -172,7 +122,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
     return () => clearInterval(interval);
   }, [sessionActive, startedAt]);
 
-  // Live session landmarks notification effect (40 min, 60 min, 80 min)
+  // Live session landmarks notification effect (customized in settings, defaults 40 min, 60 min, 80 min)
   useEffect(() => {
     if (!sessionActive || !selectedStudentId) {
       localStorage.removeItem('tt_session_notified_landmarks');
@@ -188,7 +138,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
       if (saved) notified = JSON.parse(saved);
     } catch {}
 
-    const checkAndNotify = (minutes: number, secondsLimit: number) => {
+    const checkAndNotify = (minutes: number, secondsLimit: number, alertIndex: 1 | 2 | 3) => {
       const key = minutes.toString();
       if (timerSeconds >= secondsLimit && !notified.includes(key)) {
         const title = `🚨 ${minutes}-Min Live Session Milestone`;
@@ -196,18 +146,22 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
         
         addNotification(title, body, 'system');
         setActiveAlert({ title, body });
-        playMilestoneSound(minutes);
+        triggerMilestoneSound(alertIndex);
         
         notified.push(key);
         localStorage.setItem('tt_session_notified_landmarks', JSON.stringify(notified));
       }
     };
 
-    checkAndNotify(40, 2400); // 40 minutes = 2400s
-    checkAndNotify(60, 3600); // 60 minutes = 3600s
-    checkAndNotify(80, 4800); // 80 minutes = 4800s
+    const m1 = settings.landmarkFirstAlert ?? 40;
+    const m2 = settings.landmarkSecondAlert ?? 60;
+    const m3 = settings.landmarkThirdAlert ?? 80;
 
-  }, [timerSeconds, sessionActive, selectedStudentId, students, addNotification]);
+    checkAndNotify(m1, m1 * 60, 1); 
+    checkAndNotify(m2, m2 * 60, 2); 
+    checkAndNotify(m3, m3 * 60, 3); 
+
+  }, [timerSeconds, sessionActive, selectedStudentId, students, addNotification, settings]);
 
   const handleStartSession = () => {
     if (!selectedStudentId) return;
@@ -268,18 +222,17 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
   };
 
   const handleDiscardSession = () => {
-    if (confirm('Are you sure you want to discard this live session tracking?')) {
-      const activeScheduleId = localStorage.getItem('tt_session_schedule_id');
-      if (activeScheduleId) {
-        updateScheduleSessionStatus(activeScheduleId, 'idle');
-        localStorage.removeItem('tt_session_schedule_id');
-      }
-      localStorage.removeItem('tt_session_started_at');
-      localStorage.removeItem('tt_session_student_id');
-      setSessionActive(false);
-      setStartedAt(null);
-      setSelectedStudentId('');
+    const activeScheduleId = localStorage.getItem('tt_session_schedule_id');
+    if (activeScheduleId) {
+      updateScheduleSessionStatus(activeScheduleId, 'idle');
+      localStorage.removeItem('tt_session_schedule_id');
     }
+    localStorage.removeItem('tt_session_started_at');
+    localStorage.removeItem('tt_session_student_id');
+    setSessionActive(false);
+    setStartedAt(null);
+    setSelectedStudentId('');
+    setShowDiscardConfirm(false);
   };
 
   const handleSaveAttendance = (e: React.FormEvent) => {
@@ -396,6 +349,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
     });
     return Object.keys(counts).map(cl => ({ name: cl, value: counts[cl] }));
   }, [students]);
+
+  const pendingStudents = useMemo(() => students.filter(s => s.syncStatus === 'pending').length, [students]);
+  const pendingSchedules = useMemo(() => schedules.filter(s => s.syncStatus === 'pending').length, [schedules]);
+  const pendingAttendance = useMemo(() => attendance.filter(s => s.syncStatus === 'pending').length, [attendance]);
+  const pendingPayments = useMemo(() => payments.filter(s => s.syncStatus === 'pending').length, [payments]);
+  const totalPendingSyncs = pendingStudents + pendingSchedules + pendingAttendance + pendingPayments;
 
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
 
@@ -541,46 +500,66 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
               <div className="flex flex-wrap items-center gap-2 mt-3 select-none">
                 <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Milestone:</span>
                 <button 
-                  onClick={() => playMilestoneSound(40)}
+                  onClick={() => triggerMilestoneSound(1)}
                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border transition flex items-center gap-1 hover:border-indigo-400 hover:scale-105 active:scale-95 ${
-                    timerSeconds >= 2400 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'
+                    timerSeconds >= m1 * 60 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'
                   }`}
-                  title="Preview 40-Min Crystal Chime"
+                  title={`Preview ${m1}-Min Crystal Chime`}
                 >
-                  <span>{timerSeconds >= 2400 ? '✓' : '○'} 40m</span>
+                  <span>{timerSeconds >= m1 * 60 ? '✓' : '○'} {m1}m</span>
                   <Volume2 size={10} className="text-slate-400 shrink-0" />
                 </button>
                 <button 
-                  onClick={() => playMilestoneSound(60)}
+                  onClick={() => triggerMilestoneSound(2)}
                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border transition flex items-center gap-1 hover:border-indigo-400 hover:scale-105 active:scale-95 ${
-                    timerSeconds >= 3600 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'
+                    timerSeconds >= m2 * 60 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'
                   }`}
-                  title="Preview 60-Min Dual Chime"
+                  title={`Preview ${m2}-Min Dual Chime`}
                 >
-                  <span>{timerSeconds >= 3600 ? '✓' : '○'} 60m</span>
+                  <span>{timerSeconds >= m2 * 60 ? '✓' : '○'} {m2}m</span>
                   <Volume2 size={10} className="text-slate-400 shrink-0" />
                 </button>
                 <button 
-                  onClick={() => playMilestoneSound(80)}
+                  onClick={() => triggerMilestoneSound(3)}
                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border transition flex items-center gap-1 hover:border-indigo-400 hover:scale-105 active:scale-95 ${
-                    timerSeconds >= 4800 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'
+                    timerSeconds >= m3 * 60 ? 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse' : 'bg-slate-50 border-slate-100 text-slate-400'
                   }`}
-                  title="Preview 80-Min Warning Chime"
+                  title={`Preview ${m3}-Min Warning Chime`}
                 >
-                  <span>{timerSeconds >= 4800 ? '✓' : '○'} 80m</span>
+                  <span>{timerSeconds >= m3 * 60 ? '✓' : '○'} {m3}m</span>
                   <Volume2 size={10} className="text-slate-400 shrink-0" />
                 </button>
               </div>
             </div>
 
             <div className="flex items-center gap-2.5 self-center sm:self-auto">
-              <button
-                id="btn-discard-session"
-                onClick={handleDiscardSession}
-                className="px-4 py-3 border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-white text-xs font-bold uppercase rounded-lg transition"
-              >
-                Discard
-              </button>
+              {showDiscardConfirm ? (
+                <div className="flex items-center gap-2 border border-slate-200/80 bg-slate-50/50 px-3 py-2.5 rounded-xl animate-in fade-in duration-250">
+                  <span className="text-[10px] text-rose-600 font-extrabold uppercase tracking-wider">Discard session?</span>
+                  <button
+                    onClick={handleDiscardSession}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold uppercase rounded-lg transition shadow-sm"
+                    id="btn-confirm-discard-session"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={() => setShowDiscardConfirm(false)}
+                    className="px-3 py-1.5 border border-slate-200 text-slate-500 hover:bg-white text-[10px] font-bold uppercase rounded-lg transition"
+                    id="btn-cancel-discard-session"
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button
+                  id="btn-discard-session"
+                  onClick={() => setShowDiscardConfirm(true)}
+                  className="px-4 py-3 border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-white text-xs font-bold uppercase rounded-lg transition"
+                >
+                  Discard
+                </button>
+              )}
               <button
                 id="btn-stop-session"
                 onClick={handleStopSession}
