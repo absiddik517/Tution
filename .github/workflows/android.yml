@@ -35,12 +35,15 @@ jobs:
         with:
           java-version: '21'
           distribution: 'zulu'
-          cache: 'gradle'
 
-      - name: Make Gradle Executable
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Regenerate Gradle Wrapper
         run: |
-          curl -sL https://github.com/gradle/gradle/raw/v8.12.0/gradle/wrapper/gradle-wrapper.jar -o android/gradle/wrapper/gradle-wrapper.jar
-          chmod +x android/gradlew
+          cd android
+          gradle wrapper --gradle-version 8.14.3
+          chmod +x gradlew
 
       - name: Build APK (Debug)
         run: |
