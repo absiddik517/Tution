@@ -434,8 +434,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
                             <span className={`${targetExam ? 'text-pink-750 font-semibold' : 'text-slate-400'} truncate`}>
                               {targetExam ? (
                                 <>
-                                  {targetExam.date === todayStr ? 'Exam Today: ' : 'Exam: '}
-                                  <span className="font-extrabold">{targetExam.subject}</span> ({targetExam.date})
+                                  Exam: <span className="font-extrabold">{targetExam.topic}</span>
                                 </>
                               ) : (
                                 'No exams scheduled'
