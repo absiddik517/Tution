@@ -70,6 +70,15 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Sync automatically when the internet connection is restored
+  useEffect(() => {
+    const handleOnline = () => {
+      triggerManualSync().catch(err => console.error("On-line auto sync failed:", err));
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [triggerManualSync]);
+
   // Categorize unsynced changes action-wise (Create, Update, Delete)
   const unsyncedChanges = useMemo(() => {
     const list: Array<{

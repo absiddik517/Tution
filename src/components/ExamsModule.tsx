@@ -9,6 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   LineChart, Line, Legend, PieChart, Pie, Cell 
 } from 'recharts';
+import { formatDate, formatTime } from '../formatUtils';
 
 export default function ExamsModule() {
   const { 
@@ -604,11 +605,11 @@ export default function ExamsModule() {
                   <div className="py-2.5 px-3.5 bg-slate-50 rounded-2xl flex items-center justify-between text-xs font-bold text-slate-700 font-mono">
                     <span className="flex items-center gap-1.5">
                       <Calendar size={13} className="text-slate-400" />
-                      {ex.date}
+                      {formatDate(ex.date)}
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Clock size={13} className="text-slate-400" />
-                      {ex.time}
+                      {formatTime(ex.time)}
                     </span>
                   </div>
 
@@ -724,7 +725,7 @@ export default function ExamsModule() {
                           {rec.topic}
                         </td>
                         <td className="py-4 px-5 font-mono text-slate-500">
-                          {rec.date}
+                          {formatDate(rec.date)}
                         </td>
                         <td className="py-4 px-5 text-center">
                           <div className="inline-block">

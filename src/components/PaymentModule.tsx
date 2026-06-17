@@ -4,6 +4,7 @@ import { Payment } from '../types';
 import { 
   DollarSign, Landmark, Plus, ClipboardCheck, ArrowUpRight, CheckSquare, RefreshCw, X, Receipt, Sparkles, TrendingUp
 } from 'lucide-react';
+import { formatDate } from '../formatUtils';
 
 export default function PaymentModule() {
   const { 
@@ -209,7 +210,7 @@ export default function PaymentModule() {
                         <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-medium">
                           <span>Attended: <b className="text-slate-700">{pay.attendedDays} days</b> (Expected: {pay.expectedDays})</span>
                           <span>Billable: <b className="text-slate-800">৳{pay.payableAmount}</b></span>
-                          {pay.paymentDate && <span className="text-[11px] text-slate-400">Paid on: {pay.paymentDate}</span>}
+                          {pay.paymentDate && <span className="text-[11px] text-slate-400">Paid on: {formatDate(pay.paymentDate)}</span>}
                         </div>
                       </div>
                     </div>

@@ -76,8 +76,48 @@ interface TutorTrackStore {
   importData: (imported: { students: Student[], schedules: Schedule[], attendance: Attendance[], payments: Payment[], examSchedules?: ExamSchedule[], examRecords?: ExamRecord[] }) => void;
 }
 
-export const useStore = create<TutorTrackStore>((set, get) => ({
-  students: TutorTrackDB.getStudents(),
+export const useStore = create<TutorTrackStore>((originalSet, get) => {
+  const set = (partial: any, replace?: boolean) => {
+    const isCurrentlySyncing = get()?.settings?.isSyncing;
+    originalSet(partial, replace as any);
+    
+    if (isCurrentlySyncing) {
+      return;
+    }
+    
+    let keys: string[] = [];
+    if (typeof partial === 'function') {
+      try {
+        keys = Object.keys(partial(get()));
+      } catch (e) {
+        keys = ['students', 'schedules', 'attendance', 'payments', 'examSchedules', 'examRecords', 'settings'];
+      }
+    } else if (partial && typeof partial === 'object') {
+      keys = Object.keys(partial);
+    }
+    
+    const databaseKeys = ['students', 'schedules', 'attendance', 'payments', 'examSchedules', 'examRecords', 'settings'];
+    const hasDbChanges = keys.some(key => databaseKeys.includes(key));
+    
+    if (hasDbChanges) {
+      const config = getActiveConfig(get().settings.firebaseConfig);
+      if (isFirebaseConfigured(config) && typeof navigator !== 'undefined' && navigator.onLine) {
+        if (!get().settings.isSyncing) {
+          setTimeout(() => {
+            if (!get().settings.isSyncing) {
+              const activeConfig = getActiveConfig(get().settings.firebaseConfig);
+              if (isFirebaseConfigured(activeConfig) && navigator.onLine) {
+                get().triggerManualSync().catch((err: any) => console.error("Auto sync failed:", err));
+              }
+            }
+          }, 300);
+        }
+      }
+    }
+  };
+
+  return {
+    students: TutorTrackDB.getStudents(),
   schedules: TutorTrackDB.getSchedules(),
   attendance: TutorTrackDB.getAttendance(),
   payments: TutorTrackDB.getPayments(),
@@ -924,4 +964,5 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
 
     get().addNotification('Database Migrated', 'Imported data parsed and compiled into active database.', 'system');
   }
-}));
+}
+});

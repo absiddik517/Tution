@@ -4,6 +4,7 @@ import { Schedule } from '../types';
 import { 
   Calendar, Plus, Clock, MapPin, Copy, Trash2, Edit3, X, Sparkles, BookOpen, UserSquare, CalendarDays
 } from 'lucide-react';
+import { formatDate, formatTime } from '../formatUtils';
 
 export default function ScheduleModule() {
   const { 
@@ -237,7 +238,7 @@ export default function ScheduleModule() {
                     <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 border-t sm:border-t-0 pt-2.5 sm:pt-0">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-100 px-2.5 py-1 rounded-xl shadow-sm">
                         <Clock size={13} className="text-indigo-500" />
-                        <span>{sc.startTime} - {sc.endTime}</span>
+                        <span>{formatTime(sc.startTime)} - {formatTime(sc.endTime)}</span>
                       </div>
 
                       {/* Scheduling Quick Actions */}

@@ -4,6 +4,7 @@ import { Attendance } from '../types';
 import { 
   Plus, Calendar, Clock, User, Filter, Search, Trash2, Edit3, X, ClipboardCheck, ArrowUpRight, CheckSquare
 } from 'lucide-react';
+import { formatDate, formatTime } from '../formatUtils';
 
 export default function AttendanceModule() {
   const { 
@@ -254,9 +255,9 @@ export default function AttendanceModule() {
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 text-xs mt-1 font-medium">
                         <span className="flex items-center gap-1 text-slate-650 font-semibold bg-white border border-slate-100 px-2 py-0.5 rounded-lg shadow-sm">
                           <Clock size={13} className="text-indigo-600" />
-                          {log.entryAt} - {log.exitAt}
+                          {formatTime(log.entryAt)} - {formatTime(log.exitAt)}
                         </span>
-                        <span className="text-slate-400">Date: <span className="text-slate-700 font-bold">{log.date}</span></span>
+                        <span className="text-slate-400">Date: <span className="text-slate-700 font-bold">{formatDate(log.date)}</span></span>
                       </div>
 
                       {log.remarks && (

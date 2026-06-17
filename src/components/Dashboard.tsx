@@ -7,6 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell 
 } from 'recharts';
 import { playSoundPreset } from '../sound';
+import { formatDate, formatTime } from '../formatUtils';
 
 export default function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void }) {
   const { students, schedules, attendance, payments, examSchedules, addAttendance, addNotification, settings, triggerManualSync } = useStore();
@@ -445,7 +446,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
                       })()}
 
                       <p className="text-[10px] text-indigo-700 mt-1 font-extrabold flex items-center gap-1 font-mono">
-                        ⏰ {cl.startTime} - {cl.endTime}
+                        ⏰ {formatTime(cl.startTime)} - {formatTime(cl.endTime)}
                       </p>
                     </div>
                   </div>
@@ -655,7 +656,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
             {nextExam ? (
               <div className="mt-3 flex items-center text-pink-650 font-semibold text-[10px] gap-1.5 flex-wrap">
                 <span className="bg-pink-50 text-pink-700 px-2 py-0.5 rounded-full inline-block">
-                  Next: <span className="font-extrabold">{nextExam.subject}</span> ({nextExam.date})
+                  Next: <span className="font-extrabold">{nextExam.subject}</span> ({formatDate(nextExam.date)})
                 </span>
               </div>
             ) : (

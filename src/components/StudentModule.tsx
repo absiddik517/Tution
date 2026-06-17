@@ -4,6 +4,7 @@ import { Student } from '../types';
 import { 
   Plus, Search, Filter, SortAsc, Edit2, Trash2, Calendar, Phone, DollarSign, X, Check, Eye, UserX, UserCheck, RefreshCw
 } from 'lucide-react';
+import { formatDate } from '../formatUtils';
 
 export default function StudentModule() {
   const { 
@@ -330,7 +331,7 @@ export default function StudentModule() {
                   <span className="flex items-center gap-1.5">
                     <Calendar size={13} /> Commencement:
                   </span>
-                  <span className="font-medium text-slate-700">{student.startDate}</span>
+                  <span className="font-medium text-slate-700">{formatDate(student.startDate)}</span>
                 </div>
               </div>
 
@@ -634,7 +635,7 @@ export default function StudentModule() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Commencement Date:</span>
-                    <span className="font-medium text-slate-700">{selectedStudent.startDate}</span>
+                    <span className="font-medium text-slate-700">{formatDate(selectedStudent.startDate)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Phone Contact:</span>
