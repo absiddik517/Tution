@@ -98,6 +98,31 @@ export async function logOutFromFirebase(customConfig?: FirebaseConfig | null): 
   await signOut(authInstance);
 }
 
+function sanitizeForFirestore(val: any): any {
+  if (val === undefined) {
+    return null;
+  }
+  if (val === null) {
+    return null;
+  }
+  if (val instanceof Date) {
+    return val.toISOString();
+  }
+  if (Array.isArray(val)) {
+    return val.map(sanitizeForFirestore);
+  }
+  if (typeof val === 'object') {
+    const cleaned: any = {};
+    for (const key of Object.keys(val)) {
+      if (val[key] !== undefined) {
+        cleaned[key] = sanitizeForFirestore(val[key]);
+      }
+    }
+    return cleaned;
+  }
+  return val;
+}
+
 export async function syncLocalToFirebase(
   config: FirebaseConfig,
   currentUserId: string,
@@ -132,11 +157,11 @@ export async function syncLocalToFirebase(
     const syncCollection = async (collectionName: string, items: any[]) => {
       for (const item of items) {
         const docRef = doc(db, 'tutors', userId, collectionName, item.id);
-        const uploadPayload = {
+        const uploadPayload = sanitizeForFirestore({
           ...item,
           syncStatus: 'synced',
           synchronizedAt: new Date().toISOString(),
-        };
+        });
         await setDoc(docRef, uploadPayload, { merge: true });
         syncCount++;
       }
