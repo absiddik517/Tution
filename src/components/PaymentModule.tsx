@@ -2,8 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { Payment } from '../types';
 import { 
-  DollarSign, Landmark, Plus, ClipboardCheck, ArrowUpRight, CheckSquare, RefreshCw, X, Receipt, Sparkles, TrendingUp
+  DollarSign, Landmark, Plus, ClipboardCheck, ArrowUpRight, CheckSquare, RefreshCw, X, Receipt, Sparkles, TrendingUp, AlertTriangle, CheckCircle2
 } from 'lucide-react';
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
+} from 'recharts';
 import { formatDate } from '../formatUtils';
 
 export default function PaymentModule() {
@@ -42,6 +45,21 @@ export default function PaymentModule() {
     });
 
     return { earned, received, dues };
+  }, [payments]);
+
+  const earningsData = useMemo(() => {
+    // Group payments by billing period (e.g. "May 2026", "June 2026")
+    const months = ['May 2026', 'June 2026'];
+    return months.map(m => {
+      const filtered = payments.filter(p => p.billingPeriod === m);
+      const total = filtered.reduce((sum, current) => sum + current.payableAmount, 0);
+      const received = filtered.reduce((sum, current) => sum + current.paidAmount, 0);
+      return {
+        name: m,
+        Earnings: total,
+        Received: received,
+      };
+    });
   }, [payments]);
 
   // Manage manual payment submit
@@ -304,6 +322,111 @@ export default function PaymentModule() {
           </div>
         </div>
 
+      </div>
+
+      {/* Moved Widgets: Earning & Collection Metrics and Urgent Pending Payments */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
+        {/* Interactive Earnings trend chart */}
+        <div className="bg-white border border-slate-100 p-5 rounded-3xl shadow-sm lg:col-span-2 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-bold text-slate-800 text-base">Earning & Collection Metrics</h3>
+                <p className="text-xs text-slate-400 w-full truncate">Comparing expected payable vs real received transactions</p>
+              </div>
+              <TrendingUp className="text-indigo-600 shrink-0" size={20} />
+            </div>
+            
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={earningsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorEarnings" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorReceived" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                  <YAxis stroke="#94a3b8" fontSize={11} />
+                  <Tooltip />
+                  <Area type="monotone" dataKey="Earnings" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorEarnings)" />
+                  <Area type="monotone" dataKey="Received" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorReceived)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Mini Legend Row */}
+          <div className="flex items-center gap-4 border-t border-slate-50 pt-3 mt-4 text-xs font-medium text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
+              <span>Total Billable Amount</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></div>
+              <span>Real Paid Income</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Outstanding Warning / Student Bill List - Beautiful Wide Layout */}
+        <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm lg:col-span-1 flex flex-col justify-between mx-auto w-full" id="widget-pending-payments">
+          <div className="w-full">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base font-display">Urgent Pending Payments</h3>
+                <p className="text-xs text-slate-400">Students with outstanding invoice amounts</p>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 border border-rose-100 shrink-0">
+                <AlertTriangle size={15} />
+              </div>
+            </div>
+
+            <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
+              {payments.filter(p => p.dueAmount > 0).length === 0 ? (
+                <div className="text-center py-10 bg-slate-50 rounded-2xl text-slate-400 space-y-1 border border-slate-100">
+                  <CheckCircle2 className="mx-auto text-emerald-500" size={30} />
+                  <p className="text-sm font-semibold text-slate-700 font-display">Perfect Billing Status!</p>
+                  <p className="text-xs">No pending tuitions require collection.</p>
+                </div>
+              ) : (
+                payments.filter(p => p.dueAmount > 0).map(pay => {
+                  const student = students.find(st => st.id === pay.studentId);
+                  return (
+                    <div key={pay.id} className="p-3 bg-rose-50/25 border border-rose-100 rounded-2xl flex items-center justify-between transition hover:bg-rose-50/30 gap-4">
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-slate-900 truncate text-xs">{student?.name || 'Unknown Student'}</h4>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Period: <span className="font-semibold text-slate-700">{pay.billingPeriod}</span>
+                        </p>
+                        <span className="text-[9px] font-bold tracking-wide text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full mt-1.5 inline-block border border-rose-105 font-mono">
+                          Due: ৳{pay.dueAmount}
+                        </span>
+                      </div>
+
+                      <div className="text-right flex flex-col items-end shrink-0 select-none">
+                        <span className="inline-block px-2 py-0.5 text-[9px] font-bold uppercase rounded bg-amber-50 text-amber-800 border border-amber-200">
+                          {pay.status}
+                        </span>
+                        <button 
+                          onClick={() => handleOneClickReceiveAll(pay.id)}
+                          className="block mt-2 text-[10px] font-bold text-rose-600 hover:text-rose-800 transition tracking-wider uppercase hover:underline"
+                        >
+                          Collect
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* AUTO GENERATE DIALOG MODAL */}

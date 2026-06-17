@@ -245,10 +245,10 @@ export default function ScheduleModule() {
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => duplicateSchedule(sc.id)}
-                          className="p-1 px-2 border border-indigo-100 text-[10px] font-bold rounded-lg text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 hover:scale-105 transition flex items-center gap-1"
+                          className="p-1.5 border border-indigo-100 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 rounded-lg transition hover:scale-105"
                           title="Duplicate this schedule into another weekday slot"
                         >
-                          <Copy size={11} /> Duplicate
+                          <Copy size={12} />
                         </button>
                         <button
                           onClick={() => handleStartEdit(sc)}
