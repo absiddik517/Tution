@@ -417,6 +417,34 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
                         <BookOpen size={12} className="text-slate-400 shrink-0" />
                         <span className="truncate">{cl.subject} <span className="text-slate-400 font-normal">• {student?.class}</span></span>
                       </div>
+                      
+                      {/* Exam Schedule Info Line */}
+                      {(() => {
+                        const studentExams = examSchedules.filter(ex => ex.studentId === cl.studentId);
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        const todayExam = studentExams.find(ex => ex.date === todayStr);
+                        const nextUpcomingExam = studentExams
+                          .filter(ex => ex.date >= todayStr)
+                          .sort((a, b) => a.date.localeCompare(b.date))[0];
+                        const targetExam = todayExam || nextUpcomingExam;
+                        
+                        return (
+                          <div className="flex items-center gap-1.5 text-[10px] mt-0.5">
+                            <span className={`w-1.5 h-1.5 rounded-full ${targetExam ? 'bg-pink-500' : 'bg-slate-300'} shrink-0`} />
+                            <span className={`${targetExam ? 'text-pink-750 font-semibold' : 'text-slate-400'} truncate`}>
+                              {targetExam ? (
+                                <>
+                                  {targetExam.date === todayStr ? 'Exam Today: ' : 'Exam: '}
+                                  <span className="font-extrabold">{targetExam.subject}</span> ({targetExam.date})
+                                </>
+                              ) : (
+                                'No exams scheduled'
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })()}
+
                       <p className="text-[10px] text-indigo-700 mt-1 font-extrabold flex items-center gap-1 font-mono">
                         ⏰ {cl.startTime} - {cl.endTime}
                       </p>

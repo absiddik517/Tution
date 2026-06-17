@@ -1,6 +1,9 @@
-import { initializeApp, getApp, getApps } from 'firebase/app';
+import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, getDocs, collection, deleteDoc } from 'firebase/firestore';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User } from 'firebase/auth';
+import { 
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, User,
+  signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously 
+} from 'firebase/auth';
 import appletConfig from '../firebase-applet-config.json';
 
 export interface FirebaseConfig {
@@ -24,44 +27,38 @@ export function isFirebaseConfigured(config: FirebaseConfig | null | undefined):
   return !!(config && config.apiKey && config.projectId);
 }
 
-// Global cached instances
-let firebaseAppInstance: any = null;
-let firebaseDbInstance: any = null;
-let firebaseAuthInstance: any = null;
-
 export function initializeFirebase(customConfig?: FirebaseConfig | null) {
   const config = getActiveConfig(customConfig);
   if (!isFirebaseConfigured(config)) {
     return null;
   }
 
-  if (!firebaseAppInstance) {
-    if (getApps().length > 0) {
-      firebaseAppInstance = getApp();
-    } else {
-      firebaseAppInstance = initializeApp({
-        apiKey: config.apiKey,
-        authDomain: config.authDomain,
-        projectId: config.projectId,
-        storageBucket: config.storageBucket,
-        messagingSenderId: config.messagingSenderId,
-        appId: config.appId,
-      });
-    }
+  const configKey = config.projectId;
+  const existingApps = getApps();
+  const appName = configKey === appletConfig.projectId ? '[DEFAULT]' : configKey;
+  
+  let app: FirebaseApp;
+  const matchedApp = existingApps.find(a => a.name === appName);
+  if (matchedApp) {
+    app = matchedApp;
+  } else {
+    app = initializeApp({
+      apiKey: config.apiKey,
+      authDomain: config.authDomain,
+      projectId: config.projectId,
+      storageBucket: config.storageBucket,
+      messagingSenderId: config.messagingSenderId,
+      appId: config.appId,
+    }, appName);
   }
 
-  if (!firebaseDbInstance) {
-    firebaseDbInstance = getFirestore(firebaseAppInstance, config.firestoreDatabaseId || '(default)');
-  }
-
-  if (!firebaseAuthInstance) {
-    firebaseAuthInstance = getAuth(firebaseAppInstance);
-  }
+  const db = getFirestore(app, config.firestoreDatabaseId || '(default)');
+  const auth = getAuth(app);
 
   return {
-    app: firebaseAppInstance,
-    db: firebaseDbInstance,
-    auth: firebaseAuthInstance
+    app,
+    db,
+    auth
   };
 }
 
@@ -90,6 +87,24 @@ export async function signInWithGoogle(customConfig?: FirebaseConfig | null): Pr
     prompt: 'select_account'
   });
   const result = await signInWithPopup(authInstance, googleProvider);
+  return result.user;
+}
+
+export async function signInWithEmail(email: string, password: string, customConfig?: FirebaseConfig | null): Promise<User> {
+  const authInstance = getFirebaseAuth(customConfig);
+  const result = await signInWithEmailAndPassword(authInstance, email, password);
+  return result.user;
+}
+
+export async function signUpWithEmail(email: string, password: string, customConfig?: FirebaseConfig | null): Promise<User> {
+  const authInstance = getFirebaseAuth(customConfig);
+  const result = await createUserWithEmailAndPassword(authInstance, email, password);
+  return result.user;
+}
+
+export async function signInAnonymouslyFromFirebase(customConfig?: FirebaseConfig | null): Promise<User> {
+  const authInstance = getFirebaseAuth(customConfig);
+  const result = await signInAnonymously(authInstance);
   return result.user;
 }
 

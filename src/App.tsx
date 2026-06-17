@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from './store';
 import { 
-  Users, Calendar, Clock, DollarSign, CloudLightning, ShieldCheck, ShieldAlert, KeyRound, Bell, Settings, LogOut, CheckCircle, Unlock, Smartphone, Monitor, ChevronRight, Menu, X, NotebookText, HelpCircle, LogIn, RotateCcw, Cloud, GraduationCap
+  Users, Calendar, Clock, DollarSign, CloudLightning, ShieldCheck, ShieldAlert, KeyRound, Bell, Settings, LogOut, CheckCircle, Unlock, Smartphone, Monitor, ChevronRight, Menu, X, NotebookText, HelpCircle, LogIn, RotateCcw, Cloud, GraduationCap,
+  Mail, UserPlus, Sparkles, Lock, ArrowLeft
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import StudentModule from './components/StudentModule';
@@ -10,7 +11,7 @@ import AttendanceModule from './components/AttendanceModule';
 import PaymentModule from './components/PaymentModule';
 import ExamsModule from './components/ExamsModule';
 import SettingsModule from './components/SettingsModule';
-import { initializeFirebase, signInWithGoogle, logOutFromFirebase } from './firebase';
+import { initializeFirebase, signInWithGoogle, logOutFromFirebase, signInWithEmail, signUpWithEmail, signInAnonymouslyFromFirebase } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
@@ -34,6 +35,13 @@ export default function App() {
   const [proceedAsOffline, setProceedAsOffline] = useState<boolean>(() => {
     return localStorage.getItem('tutortrack_guest_sandbox') === 'true';
   });
+
+  // Local auth form credentials and states
+  const [authMode, setAuthMode] = useState<'options' | 'email'>('options');
+  const [isSignUp, setIsSignUp] = useState<boolean>(false);
+  const [emailInput, setEmailInput] = useState<string>('');
+  const [passwordInput, setPasswordInput] = useState<string>('');
+  const [authFormError, setAuthFormError] = useState<string>('');
 
   // Alarm clock ticking tracking state
   const [currentTimeState, setCurrentTimeState] = useState<string>('');
@@ -306,37 +314,172 @@ export default function App() {
             </div>
           </div>
 
-          {/* Secure login action rows */}
-          <div className="space-y-3.5">
-            <button
-              onClick={async () => {
+          {authFormError && (
+            <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-[11px] font-bold leading-normal space-y-1">
+              <p className="flex items-center gap-1.5"><ShieldAlert size={14} className="shrink-0" /> Error Details</p>
+              <p className="font-normal text-slate-600">{authFormError}</p>
+            </div>
+          )}
+
+          {authMode === 'options' ? (
+            <div className="space-y-3.5">
+              {/* Google Sign In Option */}
+              <button
+                onClick={async () => {
+                  try {
+                    setAuthFormError('');
+                    await signInWithGoogle(settings.firebaseConfig);
+                  } catch (err: any) {
+                    const msg = err?.message || String(err);
+                    setAuthFormError(`Google Sign-In failed/blocked. Since third-party cookies or popups are often restricted in sandbox sandboxes, try using the "Email/Password" or "Instant Cloud" buttons instead. Code: ${msg}`);
+                  }
+                }}
+                className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2.5 transition active:scale-98"
+              >
+                <LogIn size={14} />
+                Sign In securely with Google
+              </button>
+
+              {/* Email authentication trigger */}
+              <button
+                onClick={() => {
+                  setAuthFormError('');
+                  setAuthMode('email');
+                }}
+                className="w-full py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98"
+              >
+                <Mail size={14} className="text-slate-500" />
+                Sign In or Register with Email
+              </button>
+
+              {/* Instant Guest backend login */}
+              <button
+                onClick={async () => {
+                  try {
+                    setAuthFormError('');
+                    await signInAnonymouslyFromFirebase(settings.firebaseConfig);
+                  } catch (err: any) {
+                    setAuthFormError(`Anonymous authentication layer failed: ${err?.message || String(err)}. Make sure Anonymous Sign-in is enabled in your Firebase console settings.`);
+                  }
+                }}
+                className="w-full py-3 px-4 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98"
+              >
+                <Sparkles size={14} className="text-indigo-500" />
+                Instant Cloud Sync Access (Anonymous)
+              </button>
+
+              <div className="relative py-1 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
+                <span className="relative bg-white px-3 text-[9px] uppercase font-bold tracking-widest text-slate-400">or offline alternative</span>
+              </div>
+
+              {/* Local fallback options */}
+              <button
+                onClick={() => {
+                  localStorage.setItem('tutortrack_guest_sandbox', 'true');
+                  setProceedAsOffline(true);
+                }}
+                className="w-full py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98"
+              >
+                Enter Temporary Offline Sandbox
+              </button>
+            </div>
+          ) : (
+            <form 
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setAuthFormError('');
+                if (!emailInput || !passwordInput) {
+                  setAuthFormError('Email and Password inputs are required.');
+                  return;
+                }
+                if (passwordInput.length < 6) {
+                  setAuthFormError('Security safeguard: Password must be at least 6 characters.');
+                  return;
+                }
                 try {
-                  await signInWithGoogle(settings.firebaseConfig);
+                  if (isSignUp) {
+                    await signUpWithEmail(emailInput, passwordInput, settings.firebaseConfig);
+                  } else {
+                    await signInWithEmail(emailInput, passwordInput, settings.firebaseConfig);
+                  }
                 } catch (err: any) {
-                  alert(`Google account login has failed/concluded: ${err?.message || String(err)}`);
+                  let errorText = err?.message || String(err);
+                  if (errorText.includes('auth/invalid-credential') || errorText.includes('auth/user-not-found') || errorText.includes('auth/wrong-password')) {
+                    errorText = 'Incorrect credentials. Please verify your details or toggle registration mode if this is your first time.';
+                  } else if (errorText.includes('auth/email-already-in-use')) {
+                    errorText = 'Email address is already registered. Switch to Sign In mode to access this database.';
+                  }
+                  setAuthFormError(errorText);
                 }
               }}
-              className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2.5 transition active:scale-98"
+              className="space-y-4"
             >
-              <LogIn size={14} />
-              Sign In securely with Google
-            </button>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthFormError('');
+                    setAuthMode('options');
+                  }}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition"
+                >
+                  <ArrowLeft size={13} /> Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthFormError('');
+                    setIsSignUp(!isSignUp);
+                  }}
+                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-800 underline transition"
+                >
+                  {isSignUp ? 'Switch to Sign In' : 'Create new account'}
+                </button>
+              </div>
 
-            <div className="relative py-1 flex items-center justify-center">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-              <span className="relative bg-white px-3 text-[9px] uppercase font-bold tracking-widest text-slate-400">or alternative</span>
-            </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email Address</label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      placeholder="teacher@tutortrack.com"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                    />
+                    <Mail size={13} className="absolute left-3 top-3 text-slate-400" />
+                  </div>
+                </div>
 
-            <button
-              onClick={() => {
-                localStorage.setItem('tutortrack_guest_sandbox', 'true');
-                setProceedAsOffline(true);
-              }}
-              className="w-full py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98"
-            >
-              Enter Temporary Offline Sandbox
-            </button>
-          </div>
+                <div>
+                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Password</label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      placeholder="••••••••"
+                      value={passwordInput}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                    />
+                    <Lock size={13} className="absolute left-3 top-3 text-slate-400" />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-md shadow-indigo-100"
+              >
+                {isSignUp ? <UserPlus size={14} /> : <LogIn size={14} />}
+                {isSignUp ? 'Create Secure Account' : 'Sign In Securely'}
+              </button>
+            </form>
+          )}
 
           <div className="bg-slate-50 border border-slate-100 p-3 rounded-2xl text-[9.5px] text-slate-500 leading-normal space-y-1">
             <p className="font-extrabold uppercase text-slate-705 text-slate-700 tracking-wide">🔐 Security Information</p>
