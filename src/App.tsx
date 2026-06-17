@@ -1,25 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from './store';
 import { 
-  Users, Calendar, Clock, DollarSign, CloudLightning, ShieldCheck, ShieldAlert, KeyRound, Bell, Settings, LogOut, CheckCircle, Unlock, Smartphone, Monitor, ChevronRight, Menu, X, NotebookText, HelpCircle, LogIn, RotateCcw, Cloud
+  Users, Calendar, Clock, DollarSign, CloudLightning, ShieldCheck, ShieldAlert, KeyRound, Bell, Settings, LogOut, CheckCircle, Unlock, Smartphone, Monitor, ChevronRight, Menu, X, NotebookText, HelpCircle, LogIn, RotateCcw, Cloud, GraduationCap
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import StudentModule from './components/StudentModule';
 import ScheduleModule from './components/ScheduleModule';
 import AttendanceModule from './components/AttendanceModule';
 import PaymentModule from './components/PaymentModule';
+import ExamsModule from './components/ExamsModule';
 import SettingsModule from './components/SettingsModule';
 import { initializeFirebase, signInWithGoogle, logOutFromFirebase } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
 export default function App() {
   const { 
-    settings, notifications, students, schedules, attendance, payments, 
+    settings, notifications, students, schedules, attendance, payments, examSchedules, examRecords,
     markNotificationRead, clearNotifications, triggerManualSync, undoLocalChange,
     currentUser, setCurrentUser
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'schedules' | 'attendance' | 'payments' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'schedules' | 'attendance' | 'payments' | 'exams' | 'settings'>('dashboard');
   const [devicePreviewMode, setDevicePreviewMode] = useState<boolean>(false);
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [pinEntry, setPinEntry] = useState<string>('');
@@ -65,7 +66,7 @@ export default function App() {
   const unsyncedChanges = useMemo(() => {
     const list: Array<{
       id: string;
-      collectionName: 'students' | 'schedules' | 'attendance' | 'payments';
+      collectionName: 'students' | 'schedules' | 'attendance' | 'payments' | 'examSchedules' | 'examRecords';
       type: 'create' | 'update' | 'delete';
       label: string;
       sublabel: string;
@@ -90,6 +91,12 @@ export default function App() {
         } else if (del.collectionName === 'payments') {
           label = `Invoice: ${del.snapshot.billingPeriod}`;
           sublabel = `Deleted payment ledger item`;
+        } else if (del.collectionName === 'examSchedules') {
+          label = `Exam Schedule: ${del.snapshot.subject}`;
+          sublabel = `Deleted exam on ${del.snapshot.date}`;
+        } else if (del.collectionName === 'examRecords') {
+          label = `Grade Record: ${del.snapshot.subject}`;
+          sublabel = `Deleted grading logs`;
         }
       }
 
@@ -161,8 +168,38 @@ export default function App() {
       }
     });
 
+    // 6. EXAM SCHEDULES Pending
+    examSchedules.forEach((ex) => {
+      if (ex.syncStatus === 'pending') {
+        const isCreated = ex.createdAt === ex.updatedAt || !ex.previousState;
+        const stud = students.find(s => s.id === ex.studentId);
+        list.push({
+          id: ex.id,
+          collectionName: 'examSchedules',
+          type: isCreated ? 'create' : 'update',
+          label: `Exam Scheduled: ${ex.subject} (${stud ? stud.name : 'Pupil'})`,
+          sublabel: isCreated ? `New upcoming slot on ${ex.date}` : `Updated exam schedule details`
+        });
+      }
+    });
+
+    // 7. EXAM RECORDS Pending
+    examRecords.forEach((er) => {
+      if (er.syncStatus === 'pending') {
+        const isCreated = er.createdAt === er.updatedAt || !er.previousState;
+        const stud = students.find(s => s.id === er.studentId);
+        list.push({
+          id: er.id,
+          collectionName: 'examRecords',
+          type: isCreated ? 'create' : 'update',
+          label: `Exam Result Log: ${er.subject} (${stud ? stud.name : 'Pupil'})`,
+          sublabel: isCreated ? `Recorded score of ${er.marksObtained}/${er.totalMarks}` : `Corrected result score`
+        });
+      }
+    });
+
     return list;
-  }, [students, schedules, attendance, payments, settings.deletedRecords]);
+  }, [students, schedules, attendance, payments, examSchedules, examRecords, settings.deletedRecords]);
 
   const totalPendingSyncs = unsyncedChanges.length;
 
@@ -211,6 +248,7 @@ export default function App() {
       case 'schedules': return 'Tuition Planner';
       case 'attendance': return 'Attendance Log Register';
       case 'payments': return 'Payments & Receipts';
+      case 'exams': return 'Exams & Progress Reports';
       case 'settings': return 'System Preferences';
       default: return 'TutorTrack';
     }
@@ -223,6 +261,7 @@ export default function App() {
     { id: 'schedules', label: 'Weekly Planner', icon: Calendar, badge: schedules.length },
     { id: 'attendance', label: 'Attendance Logs', icon: Clock },
     { id: 'payments', label: 'Payments Register', icon: DollarSign },
+    { id: 'exams', label: 'Exams & Reports', icon: GraduationCap, badge: examSchedules.length },
     { id: 'settings', label: 'System Settings', icon: Settings },
   ];
 
@@ -234,6 +273,7 @@ export default function App() {
       case 'schedules': return <ScheduleModule />;
       case 'attendance': return <AttendanceModule />;
       case 'payments': return <PaymentModule />;
+      case 'exams': return <ExamsModule />;
       case 'settings': return <SettingsModule />;
       default: return <Dashboard onNavigate={(tab: any) => setActiveTab(tab)} />;
     }

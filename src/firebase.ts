@@ -106,6 +106,8 @@ export async function syncLocalToFirebase(
     schedules: any[];
     attendance: any[];
     payments: any[];
+    examSchedules?: any[];
+    examRecords?: any[];
     deletedRecords?: { id: string; collectionName: string }[];
   }
 ): Promise<{ success: boolean; count: number; error?: string }> {
@@ -145,6 +147,8 @@ export async function syncLocalToFirebase(
     await syncCollection('schedules', data.schedules);
     await syncCollection('attendance', data.attendance);
     await syncCollection('payments', data.payments);
+    if (data.examSchedules) await syncCollection('examSchedules', data.examSchedules);
+    if (data.examRecords) await syncCollection('examRecords', data.examRecords);
 
     return { success: true, count: syncCount };
   } catch (error: any) {
@@ -163,6 +167,8 @@ export async function fetchFromFirebase(
     schedules: any[];
     attendance: any[];
     payments: any[];
+    examSchedules: any[];
+    examRecords: any[];
   };
   error?: string;
 }> {
@@ -183,10 +189,12 @@ export async function fetchFromFirebase(
     const schedules = await fetchCollection('schedules');
     const attendance = await fetchCollection('attendance');
     const payments = await fetchCollection('payments');
+    const examSchedules = await fetchCollection('examSchedules');
+    const examRecords = await fetchCollection('examRecords');
 
     return {
       success: true,
-      data: { students, schedules, attendance, payments }
+      data: { students, schedules, attendance, payments, examSchedules, examRecords }
     };
   } catch (error: any) {
     console.error('Firebase pull sync failed:', error);

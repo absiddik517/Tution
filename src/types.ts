@@ -62,7 +62,7 @@ export interface Payment {
 
 export interface DeletedRecord {
   id: string;
-  collectionName: 'students' | 'schedules' | 'attendance' | 'payments';
+  collectionName: 'students' | 'schedules' | 'attendance' | 'payments' | 'examSchedules' | 'examRecords';
   snapshot?: any;
 }
 
@@ -96,7 +96,40 @@ export interface AppNotification {
   id: string;
   title: string;
   body: string;
-  type: 'schedule' | 'payment' | 'attendance' | 'system';
+  type: 'schedule' | 'payment' | 'attendance' | 'system' | 'exam';
   timestamp: string;
   read: boolean;
+}
+
+export interface ExamSchedule {
+  id: string;
+  studentId: string;
+  subject: string;
+  topic: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  totalMarks: number;
+  reminderMinutes: number; // e.g., 30, 60, 1440 (1 day)
+  reminderSent?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  syncStatus: 'pending' | 'synced';
+  previousState?: string;
+}
+
+export interface ExamRecord {
+  id: string;
+  studentId: string;
+  examScheduleId?: string; // Optional link to schedule
+  subject: string;
+  topic: string;
+  date: string; // YYYY-MM-DD
+  totalMarks: number;
+  marksObtained: number;
+  remarks: string;
+  status: 'Passed' | 'Failed' | 'Awaiting' | 'Absent';
+  createdAt: string;
+  updatedAt: string;
+  syncStatus: 'pending' | 'synced';
+  previousState?: string;
 }

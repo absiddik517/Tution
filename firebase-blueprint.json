@@ -77,6 +77,47 @@
         "syncStatus": { "type": "string" }
       },
       "required": ["id", "studentId", "billingPeriod"]
+    },
+    "ExamSchedule": {
+      "title": "ExamSchedule",
+      "description": "Scheduled exam details for a student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "subject": { "type": "string" },
+        "topic": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "totalMarks": { "type": "number" },
+        "reminderMinutes": { "type": "number" },
+        "reminderSent": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "syncStatus": { "type": "string" }
+      },
+      "required": ["id", "studentId", "subject", "date"]
+    },
+    "ExamRecord": {
+      "title": "ExamRecord",
+      "description": "Exam performance records of a student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "examScheduleId": { "type": "string" },
+        "subject": { "type": "string" },
+        "topic": { "type": "string" },
+        "date": { "type": "string" },
+        "totalMarks": { "type": "number" },
+        "marksObtained": { "type": "number" },
+        "remarks": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "syncStatus": { "type": "string" }
+      },
+      "required": ["id", "studentId", "subject", "totalMarks", "marksObtained"]
     }
   },
   "firestore": {
@@ -95,6 +136,14 @@
     "/tutors/{userId}/payments/{paymentId}": {
       "schema": "Payment",
       "description": "Financial billing history logs"
+    },
+    "/tutors/{userId}/examSchedules/{examScheduleId}": {
+      "schema": "ExamSchedule",
+      "description": "Upcoming exam schedules"
+    },
+    "/tutors/{userId}/examRecords/{examRecordId}": {
+      "schema": "ExamRecord",
+      "description": "Historical exam records and marks"
     }
   }
 }

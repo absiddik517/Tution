@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification } from './types';
+import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification, ExamSchedule, ExamRecord } from './types';
 import { TutorTrackDB } from './db';
 import { syncLocalToFirebase, fetchFromFirebase, getActiveConfig, isFirebaseConfigured } from './firebase';
 
@@ -8,6 +8,8 @@ interface TutorTrackStore {
   schedules: Schedule[];
   attendance: Attendance[];
   payments: Payment[];
+  examSchedules: ExamSchedule[];
+  examRecords: ExamRecord[];
   settings: AppSettings;
   notifications: AppNotification[];
   currentUser: any | null;
@@ -43,6 +45,16 @@ interface TutorTrackStore {
   deletePayment: (id: string) => void;
   generateAutoPayments: (studentId: string, billingPeriod: string, expectedDays: number) => void;
 
+  // Actions - Exam Schedules
+  addExamSchedule: (exam: Omit<ExamSchedule, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>) => void;
+  updateExamSchedule: (id: string, updated: Partial<ExamSchedule>) => void;
+  deleteExamSchedule: (id: string) => void;
+
+  // Actions - Exam Records
+  addExamRecord: (record: Omit<ExamRecord, 'id' | 'createdAt' | 'updatedAt' | 'syncStatus'>) => void;
+  updateExamRecord: (id: string, updated: Partial<ExamRecord>) => void;
+  deleteExamRecord: (id: string) => void;
+
   // Sync Engine & Settings Trigger
   triggerManualSync: () => Promise<void>;
   saveFirebaseConfig: (config: AppSettings['firebaseConfig']) => void;
@@ -58,10 +70,10 @@ interface TutorTrackStore {
   clearNotifications: () => void;
 
   // Local Undo Change Action
-  undoLocalChange: (collectionName: 'students' | 'schedules' | 'attendance' | 'payments', id: string, changeType: 'create' | 'update' | 'delete') => void;
+  undoLocalChange: (collectionName: 'students' | 'schedules' | 'attendance' | 'payments' | 'examSchedules' | 'examRecords', id: string, changeType: 'create' | 'update' | 'delete') => void;
 
   // Export & Recovery
-  importData: (imported: { students: Student[], schedules: Schedule[], attendance: Attendance[], payments: Payment[] }) => void;
+  importData: (imported: { students: Student[], schedules: Schedule[], attendance: Attendance[], payments: Payment[], examSchedules?: ExamSchedule[], examRecords?: ExamRecord[] }) => void;
 }
 
 export const useStore = create<TutorTrackStore>((set, get) => ({
@@ -69,6 +81,8 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
   schedules: TutorTrackDB.getSchedules(),
   attendance: TutorTrackDB.getAttendance(),
   payments: TutorTrackDB.getPayments(),
+  examSchedules: TutorTrackDB.getExamSchedules(),
+  examRecords: TutorTrackDB.getExamRecords(),
   settings: TutorTrackDB.getSettings(),
   notifications: TutorTrackDB.getNotifications(),
   currentUser: null,
@@ -393,6 +407,125 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     }
   },
 
+  // EXAM ACTIONS
+  addExamSchedule: (examData) => {
+    const now = new Date().toISOString();
+    const id = 'exsch-' + Math.random().toString(36).substring(2, 9);
+    const newExam: ExamSchedule = {
+      ...examData,
+      id,
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: 'pending',
+    };
+    const updated = [newExam, ...get().examSchedules];
+    TutorTrackDB.setExamSchedules(updated);
+    set({ examSchedules: updated });
+
+    // Instantly queue an app alert notification
+    const student = get().students.find(s => s.id === examData.studentId);
+    get().addNotification(
+      'Exam Scheduled',
+      `Upcoming exam for ${student ? student.name : 'student'} on ${examData.date} at ${examData.time}.`,
+      'exam'
+    );
+  },
+
+  updateExamSchedule: (id, updatedFields) => {
+    const now = new Date().toISOString();
+    const updated: ExamSchedule[] = get().examSchedules.map(ex => {
+      if (ex.id === id) {
+        const isOriginallySynced = ex.syncStatus === 'synced';
+        const prevSnapshot = isOriginallySynced && !ex.previousState ? JSON.stringify(ex) : ex.previousState;
+        return {
+          ...ex,
+          ...updatedFields,
+          updatedAt: now,
+          syncStatus: 'pending' as const,
+          previousState: prevSnapshot,
+        };
+      }
+      return ex;
+    });
+    TutorTrackDB.setExamSchedules(updated);
+    set({ examSchedules: updated });
+  },
+
+  deleteExamSchedule: (id) => {
+    const deleted = get().examSchedules.find(ex => ex.id === id);
+    const updated = get().examSchedules.filter(ex => ex.id !== id);
+    TutorTrackDB.setExamSchedules(updated);
+
+    const existingDeletes = get().settings.deletedRecords || [];
+    const updatedSettings = {
+      ...get().settings,
+      deletedRecords: [...existingDeletes, { id, collectionName: 'examSchedules' as const, snapshot: deleted }]
+    };
+    TutorTrackDB.setSettings(updatedSettings);
+
+    set({ examSchedules: updated, settings: updatedSettings });
+    get().addNotification('Exam Schedule Removed', 'The exam schedule metadata was erased.', 'system');
+  },
+
+  addExamRecord: (recData) => {
+    const now = new Date().toISOString();
+    const id = 'exrec-' + Math.random().toString(36).substring(2, 9);
+    const newRecord: ExamRecord = {
+      ...recData,
+      id,
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: 'pending',
+    };
+    const updated = [newRecord, ...get().examRecords];
+    TutorTrackDB.setExamRecords(updated);
+    set({ examRecords: updated });
+
+    const student = get().students.find(s => s.id === recData.studentId);
+    const scorePct = Math.round((recData.marksObtained / recData.totalMarks) * 100);
+    get().addNotification(
+      'Exam Record Added',
+      `Marks recorded for ${student ? student.name : 'student'}: ${recData.marksObtained}/${recData.totalMarks} (${scorePct}%).`,
+      'exam'
+    );
+  },
+
+  updateExamRecord: (id, updatedFields) => {
+    const now = new Date().toISOString();
+    const updated: ExamRecord[] = get().examRecords.map(rec => {
+      if (rec.id === id) {
+        const isOriginallySynced = rec.syncStatus === 'synced';
+        const prevSnapshot = isOriginallySynced && !rec.previousState ? JSON.stringify(rec) : rec.previousState;
+        return {
+          ...rec,
+          ...updatedFields,
+          updatedAt: now,
+          syncStatus: 'pending' as const,
+          previousState: prevSnapshot,
+        };
+      }
+      return rec;
+    });
+    TutorTrackDB.setExamRecords(updated);
+    set({ examRecords: updated });
+  },
+
+  deleteExamRecord: (id) => {
+    const deleted = get().examRecords.find(rec => rec.id === id);
+    const updated = get().examRecords.filter(rec => rec.id !== id);
+    TutorTrackDB.setExamRecords(updated);
+
+    const existingDeletes = get().settings.deletedRecords || [];
+    const updatedSettings = {
+      ...get().settings,
+      deletedRecords: [...existingDeletes, { id, collectionName: 'examRecords' as const, snapshot: deleted }]
+    };
+    TutorTrackDB.setSettings(updatedSettings);
+
+    set({ examRecords: updated, settings: updatedSettings });
+    get().addNotification('Exam Record Removed', 'The grade progress sheet was updated.', 'system');
+  },
+
   // OFFLINE-FIRST BACKGROUND SYNC ENGINE
   triggerManualSync: async () => {
     if (get().settings.isSyncing) return;
@@ -414,6 +547,8 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
           schedules: get().schedules,
           attendance: get().attendance,
           payments: get().payments,
+          examSchedules: get().examSchedules,
+          examRecords: get().examRecords,
           deletedRecords
         });
         if (!result.success) {
@@ -448,11 +583,15 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     const syncedSchedules = syncItem(get().schedules);
     const syncedAttendance = syncItem(get().attendance);
     const syncedPayments = syncItem(get().payments);
+    const syncedExamSchedules = syncItem(get().examSchedules);
+    const syncedExamRecords = syncItem(get().examRecords);
 
     TutorTrackDB.setStudents(syncedStudents);
     TutorTrackDB.setSchedules(syncedSchedules);
     TutorTrackDB.setAttendance(syncedAttendance);
     TutorTrackDB.setPayments(syncedPayments);
+    TutorTrackDB.setExamSchedules(syncedExamSchedules);
+    TutorTrackDB.setExamRecords(syncedExamRecords);
 
     const nowStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString();
 
@@ -461,6 +600,8 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
       schedules: syncedSchedules,
       attendance: syncedAttendance,
       payments: syncedPayments,
+      examSchedules: syncedExamSchedules,
+      examRecords: syncedExamRecords,
       settings: {
         ...state.settings,
         isSyncing: false,
@@ -505,19 +646,23 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
       }));
 
       if (result.success && result.data) {
-        const { students, schedules, attendance, payments } = result.data;
+        const { students, schedules, attendance, payments, examSchedules = [], examRecords = [] } = result.data as any;
         
         // Merge or overwrite
         if (students.length > 0) TutorTrackDB.setStudents(students);
         if (schedules.length > 0) TutorTrackDB.setSchedules(schedules);
         if (attendance.length > 0) TutorTrackDB.setAttendance(attendance);
         if (payments.length > 0) TutorTrackDB.setPayments(payments);
+        if (examSchedules.length > 0) TutorTrackDB.setExamSchedules(examSchedules);
+        if (examRecords.length > 0) TutorTrackDB.setExamRecords(examRecords);
 
         set({
           students: students.length > 0 ? students : get().students,
           schedules: schedules.length > 0 ? schedules : get().schedules,
           attendance: attendance.length > 0 ? attendance : get().attendance,
           payments: payments.length > 0 ? payments : get().payments,
+          examSchedules: examSchedules.length > 0 ? examSchedules : get().examSchedules,
+          examRecords: examRecords.length > 0 ? examRecords : get().examRecords,
         });
 
         get().addNotification('Firebase Sync Pull Completed', 'Overwrote active dataset with Firebase database cloud tables.', 'system');
@@ -571,6 +716,8 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
       schedules: TutorTrackDB.getSchedules(),
       attendance: TutorTrackDB.getAttendance(),
       payments: TutorTrackDB.getPayments(),
+      examSchedules: TutorTrackDB.getExamSchedules(),
+      examRecords: TutorTrackDB.getExamRecords(),
       settings: TutorTrackDB.getSettings(),
       notifications: TutorTrackDB.getNotifications(),
     });
@@ -626,6 +773,16 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
         TutorTrackDB.setPayments(updated);
         set({ payments: updated });
         get().addNotification('Undo Creation', 'Payment ledger item creation undone.', 'system');
+      } else if (collectionName === 'examSchedules') {
+        const updated = get().examSchedules.filter(ex => ex.id !== id);
+        TutorTrackDB.setExamSchedules(updated);
+        set({ examSchedules: updated });
+        get().addNotification('Undo Creation', 'Exam schedule creation undone.', 'system');
+      } else if (collectionName === 'examRecords') {
+        const updated = get().examRecords.filter(er => er.id !== id);
+        TutorTrackDB.setExamRecords(updated);
+        set({ examRecords: updated });
+        get().addNotification('Undo Creation', 'Exam record creation undone.', 'system');
       }
     } else if (changeType === 'update') {
       if (collectionName === 'students') {
@@ -680,6 +837,32 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
         TutorTrackDB.setPayments(updated);
         set({ payments: updated });
         get().addNotification('Undo Update', 'Payment record restored to original synced state.', 'system');
+      } else if (collectionName === 'examSchedules') {
+        const updated = get().examSchedules.map(ex => {
+          if (ex.id === id && ex.previousState) {
+            try {
+              const restored = JSON.parse(ex.previousState);
+              return { ...restored, syncStatus: 'synced' as const, previousState: undefined };
+            } catch (e) {}
+          }
+          return ex;
+        });
+        TutorTrackDB.setExamSchedules(updated);
+        set({ examSchedules: updated });
+        get().addNotification('Undo Update', 'Exam schedule restored to original state.', 'system');
+      } else if (collectionName === 'examRecords') {
+        const updated = get().examRecords.map(er => {
+          if (er.id === id && er.previousState) {
+            try {
+              const restored = JSON.parse(er.previousState);
+              return { ...restored, syncStatus: 'synced' as const, previousState: undefined };
+            } catch (e) {}
+          }
+          return er;
+        });
+        TutorTrackDB.setExamRecords(updated);
+        set({ examRecords: updated });
+        get().addNotification('Undo Update', 'Exam record restored to original state.', 'system');
       }
     } else if (changeType === 'delete') {
       const currentDeletes = get().settings.deletedRecords || [];
@@ -702,6 +885,14 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
           const updated = [snapshot, ...get().payments];
           TutorTrackDB.setPayments(updated);
           set({ payments: updated });
+        } else if (collectionName === 'examSchedules') {
+          const updated = [snapshot, ...get().examSchedules];
+          TutorTrackDB.setExamSchedules(updated);
+          set({ examSchedules: updated });
+        } else if (collectionName === 'examRecords') {
+          const updated = [snapshot, ...get().examRecords];
+          TutorTrackDB.setExamRecords(updated);
+          set({ examRecords: updated });
         }
 
         const updatedDeletes = currentDeletes.filter(d => !(d.id === id && d.collectionName === collectionName));
@@ -719,12 +910,16 @@ export const useStore = create<TutorTrackStore>((set, get) => ({
     TutorTrackDB.setSchedules(imported.schedules);
     TutorTrackDB.setAttendance(imported.attendance);
     TutorTrackDB.setPayments(imported.payments);
+    if (imported.examSchedules) TutorTrackDB.setExamSchedules(imported.examSchedules);
+    if (imported.examRecords) TutorTrackDB.setExamRecords(imported.examRecords);
     
     set({
       students: imported.students,
       schedules: imported.schedules,
       attendance: imported.attendance,
-      payments: imported.payments
+      payments: imported.payments,
+      examSchedules: imported.examSchedules || get().examSchedules,
+      examRecords: imported.examRecords || get().examRecords,
     });
 
     get().addNotification('Database Migrated', 'Imported data parsed and compiled into active database.', 'system');

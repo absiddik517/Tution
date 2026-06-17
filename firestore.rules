@@ -90,6 +90,37 @@ service cloud.firestore {
              (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
     }
 
+    function isValidExamSchedule(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             (!('subject' in data) || (data.subject is string && data.subject.size() <= 200)) &&
+             (!('topic' in data) || (data.topic is string && data.topic.size() <= 400)) &&
+             (!('date' in data) || (data.date is string && data.date.size() <= 30)) &&
+             (!('time' in data) || (data.time is string && data.time.size() <= 15)) &&
+             (!('totalMarks' in data) || (data.totalMarks is int || data.totalMarks is float)) &&
+             (!('reminderMinutes' in data) || (data.reminderMinutes is int)) &&
+             (!('reminderSent' in data) || (data.reminderSent is bool)) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+    }
+
+    function isValidExamRecord(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.studentId is string && data.studentId.size() <= 128 &&
+             (!('examScheduleId' in data) || (data.examScheduleId is string && data.examScheduleId.size() <= 128)) &&
+             (!('subject' in data) || (data.subject is string && data.subject.size() <= 200)) &&
+             (!('topic' in data) || (data.topic is string && data.topic.size() <= 400)) &&
+             (!('date' in data) || (data.date is string && data.date.size() <= 30)) &&
+             (!('totalMarks' in data) || (data.totalMarks is int || data.totalMarks is float)) &&
+             (!('marksObtained' in data) || (data.marksObtained is int || data.marksObtained is float)) &&
+             (!('remarks' in data) || (data.remarks is string && data.remarks.size() <= 1000)) &&
+             (!('status' in data) || (data.status is string && (data.status == 'Passed' || data.status == 'Failed' || data.status == 'Awaiting' || data.status == 'Absent'))) &&
+             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
+             (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+    }
+
     // Secure user paths
     match /tutors/{userId} {
       allow read, write: if isAllowedUser(userId);
@@ -119,6 +150,20 @@ service cloud.firestore {
         allow read: if isAllowedUser(userId);
         allow create: if isAllowedUser(userId) && isValidId(paymentId) && isValidPayment(incoming());
         allow update: if isAllowedUser(userId) && isValidPayment(incoming());
+        allow delete: if isAllowedUser(userId);
+      }
+
+      match /examSchedules/{examScheduleId} {
+        allow read: if isAllowedUser(userId);
+        allow create: if isAllowedUser(userId) && isValidId(examScheduleId) && isValidExamSchedule(incoming());
+        allow update: if isAllowedUser(userId) && isValidExamSchedule(incoming());
+        allow delete: if isAllowedUser(userId);
+      }
+
+      match /examRecords/{examRecordId} {
+        allow read: if isAllowedUser(userId);
+        allow create: if isAllowedUser(userId) && isValidId(examRecordId) && isValidExamRecord(incoming());
+        allow update: if isAllowedUser(userId) && isValidExamRecord(incoming());
         allow delete: if isAllowedUser(userId);
       }
     }

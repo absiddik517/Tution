@@ -1,4 +1,4 @@
-import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification } from './types';
+import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification, ExamSchedule, ExamRecord } from './types';
 
 // Default initial mock data
 const DEFAULT_STUDENTS: Student[] = [
@@ -322,6 +322,12 @@ export const TutorTrackDB = {
   getPayments: (): Payment[] => getStored('tt_payments', []),
   setPayments: (payments: Payment[]) => setStored('tt_payments', payments),
 
+  getExamSchedules: (): ExamSchedule[] => getStored('tt_exam_schedules', []),
+  setExamSchedules: (examSchedules: ExamSchedule[]) => setStored('tt_exam_schedules', examSchedules),
+
+  getExamRecords: (): ExamRecord[] => getStored('tt_exam_records', []),
+  setExamRecords: (examRecords: ExamRecord[]) => setStored('tt_exam_records', examRecords),
+
   getSettings: (): AppSettings => getStored('tt_settings', {
     darkMode: false,
     pinLockEnabled: false,
@@ -343,6 +349,8 @@ export const TutorTrackDB = {
     setStored('tt_schedules', []);
     setStored('tt_attendance', []);
     setStored('tt_payments', []);
+    setStored('tt_exam_schedules', []);
+    setStored('tt_exam_records', []);
     setStored('tt_settings', {
       darkMode: false,
       pinLockEnabled: false,
