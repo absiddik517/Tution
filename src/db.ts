@@ -328,16 +328,32 @@ export const TutorTrackDB = {
   getExamRecords: (): ExamRecord[] => getStored('tt_exam_records', []),
   setExamRecords: (examRecords: ExamRecord[]) => setStored('tt_exam_records', examRecords),
 
-  getSettings: (): AppSettings => getStored('tt_settings', {
-    darkMode: false,
-    pinLockEnabled: false,
-    pinCode: '',
-    biometricLockEnabled: false,
-    lastBackupTime: 'Never',
-    isSyncing: false,
-    backupSuccessCount: 0,
-    deletedRecords: [],
-  }),
+  getSettings: (): AppSettings => {
+    const defaultSettings: AppSettings = {
+      darkMode: false,
+      pinLockEnabled: false,
+      pinCode: '',
+      biometricLockEnabled: false,
+      lastBackupTime: 'Never',
+      isSyncing: false,
+      backupSuccessCount: 0,
+      deletedRecords: [],
+      firebaseConfig: {
+        apiKey: "AIzaSyDzKutBWol_klfnK-0uJ2irEB_uQU6Uhps",
+        authDomain: "tutor-2026.firebaseapp.com",
+        projectId: "tutor-2026",
+        storageBucket: "tutor-2026.firebasestorage.app",
+        messagingSenderId: "374342880731",
+        appId: "1:374342880731:web:e32a447a42d35d9863abfe",
+        firestoreDatabaseId: "(default)"
+      }
+    };
+    const stored = getStored('tt_settings', defaultSettings);
+    if (!stored.firebaseConfig || !stored.firebaseConfig.apiKey) {
+      stored.firebaseConfig = defaultSettings.firebaseConfig;
+    }
+    return stored;
+  },
   setSettings: (settings: AppSettings) => setStored('tt_settings', settings),
 
   getNotifications: (): AppNotification[] => getStored('tt_notifications', []),
@@ -360,6 +376,15 @@ export const TutorTrackDB = {
       isSyncing: false,
       backupSuccessCount: 0,
       deletedRecords: [],
+      firebaseConfig: {
+        apiKey: "AIzaSyDzKutBWol_klfnK-0uJ2irEB_uQU6Uhps",
+        authDomain: "tutor-2026.firebaseapp.com",
+        projectId: "tutor-2026",
+        storageBucket: "tutor-2026.firebasestorage.app",
+        messagingSenderId: "374342880731",
+        appId: "1:374342880731:web:e32a447a42d35d9863abfe",
+        firestoreDatabaseId: "(default)"
+      }
     });
     setStored('tt_notifications', []);
   }

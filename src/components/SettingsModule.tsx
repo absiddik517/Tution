@@ -28,12 +28,12 @@ export default function SettingsModule() {
 
   // Firebase Config Form State
   const [showConfigForm, setShowConfigForm] = useState(false);
-  const [apiKey, setApiKey] = useState(settings.firebaseConfig?.apiKey || '');
-  const [projectId, setProjectId] = useState(settings.firebaseConfig?.projectId || '');
-  const [authDomain, setAuthDomain] = useState(settings.firebaseConfig?.authDomain || '');
-  const [storageBucket, setStorageBucket] = useState(settings.firebaseConfig?.storageBucket || '');
-  const [messagingSenderId, setMessagingSenderId] = useState(settings.firebaseConfig?.messagingSenderId || '');
-  const [appId, setAppId] = useState(settings.firebaseConfig?.appId || '');
+  const [apiKey, setApiKey] = useState(settings.firebaseConfig?.apiKey || 'AIzaSyDzKutBWol_klfnK-0uJ2irEB_uQU6Uhps');
+  const [projectId, setProjectId] = useState(settings.firebaseConfig?.projectId || 'tutor-2026');
+  const [authDomain, setAuthDomain] = useState(settings.firebaseConfig?.authDomain || 'tutor-2026.firebaseapp.com');
+  const [storageBucket, setStorageBucket] = useState(settings.firebaseConfig?.storageBucket || 'tutor-2026.firebasestorage.app');
+  const [messagingSenderId, setMessagingSenderId] = useState(settings.firebaseConfig?.messagingSenderId || '374342880731');
+  const [appId, setAppId] = useState(settings.firebaseConfig?.appId || '1:374342880731:web:e32a447a42d35d9863abfe');
   const [dbId, setDbId] = useState(settings.firebaseConfig?.firestoreDatabaseId || '(default)');
   const [syncPulling, setSyncPulling] = useState(false);
 
