@@ -9,7 +9,7 @@ import {
 import { playSoundPreset } from '../sound';
 
 export default function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void }) {
-  const { students, schedules, attendance, payments, addAttendance, addNotification, settings, triggerManualSync } = useStore();
+  const { students, schedules, attendance, payments, examSchedules, addAttendance, addNotification, settings, triggerManualSync } = useStore();
 
   // 1. LIVE SESSION TIMER STATE
   const [sessionActive, setSessionActive] = useState(false);
@@ -326,6 +326,20 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
     return { income, received, due };
   }, [payments]);
 
+  // Upcoming Exams data
+  const upcomingExamsCount = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return examSchedules.filter(ex => ex.date >= todayStr).length;
+  }, [examSchedules]);
+
+  const nextExam = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const upcomings = examSchedules
+      .filter(ex => ex.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    return upcomings[0] || null;
+  }, [examSchedules]);
+
   // 2. CHART DATA ENGINES
   const earningsData = useMemo(() => {
     // Group payments by billing period (e.g. "May 2026", "June 2026")
@@ -573,7 +587,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
       </div>
 
       {/* Grid of Stats Cards - SLEEK INTERFACE */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6" id="dashboard-stats-grid">
+      <div className="grid grid-cols-1 gap-6" id="dashboard-stats-grid">
         {/* Total & Active Students */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between transition hover:shadow-md" id="stat-card-active-students">
           <div>
@@ -601,22 +615,32 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
               </span>
             </div>
           </div>
-          <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shadow-sm flex-shrink-0">
+          <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-650 shadow-sm flex-shrink-0">
             <Calendar size={22} className="stroke-[2.2]" />
           </div>
         </div>
 
-        {/* Monthly Attendance */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between transition hover:shadow-md" id="stat-card-attendance-rate">
+        {/* Upcoming test */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between transition hover:shadow-md" id="stat-card-upcoming-tests">
           <div>
-            <p className="text-slate-500 text-[11px] font-bold uppercase tracking-wider mb-1 font-display">Attendance Rate</p>
-            <h3 className="text-3xl font-black text-slate-900 tracking-tight">98.4%</h3>
-            <div className="mt-4 w-24 bg-slate-100 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-indigo-650 h-full w-[98.4%] rounded-full"></div>
-            </div>
+            <p className="text-slate-500 text-[11px] font-bold uppercase tracking-wider mb-1 font-display">Upcoming Tests</p>
+            <h3 className="text-3xl font-black text-slate-900 tracking-tight">{upcomingExamsCount}</h3>
+            {nextExam ? (
+              <div className="mt-3 flex items-center text-pink-650 font-semibold text-[10px] gap-1.5 flex-wrap">
+                <span className="bg-pink-50 text-pink-700 px-2 py-0.5 rounded-full inline-block">
+                  Next: <span className="font-extrabold">{nextExam.subject}</span> ({nextExam.date})
+                </span>
+              </div>
+            ) : (
+              <div className="mt-3 flex items-center text-pink-650 font-semibold text-[10px]">
+                <span className="bg-pink-50 text-pink-700 px-2 py-0.5 rounded-full inline-block">
+                  No upcoming tests scheduled
+                </span>
+              </div>
+            )}
           </div>
           <div className="w-12 h-12 bg-pink-50 rounded-xl flex items-center justify-center text-pink-600 shadow-sm flex-shrink-0">
-            <Clock size={22} className="stroke-[2.2]" />
+            <BookOpen size={22} className="stroke-[2.2]" />
           </div>
         </div>
 

@@ -12,7 +12,7 @@ import {
 
 export default function ExamsModule() {
   const { 
-    students, examSchedules, examRecords, 
+    students, schedules, examSchedules, examRecords, 
     addExamSchedule, updateExamSchedule, deleteExamSchedule,
     addExamRecord, updateExamRecord, deleteExamRecord,
     addNotification
@@ -199,16 +199,75 @@ export default function ExamsModule() {
     return list.sort((a, b) => b['Avg Score %'] - a['Avg Score %']);
   }, [students, examRecords]);
 
+  // Helper to find the next schedule date and time for a student
+  const getNextScheduleData = (studentId: string) => {
+    const studentSchedules = schedules.filter(s => s.studentId === studentId);
+    if (studentSchedules.length === 0) {
+      return {
+        date: new Date().toISOString().split('T')[0],
+        time: '14:00'
+      };
+    }
+
+    const today = new Date();
+    const currentDayNum = today.getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
+
+    const weekdayMap: Record<string, number> = {
+      'Sunday': 0,
+      'Monday': 1,
+      'Tuesday': 2,
+      'Wednesday': 3,
+      'Thursday': 4,
+      'Friday': 5,
+      'Saturday': 6
+    };
+
+    let selectedSchedule = studentSchedules[0];
+    let minDaysDiff = 100;
+
+    studentSchedules.forEach(schedule => {
+      const targetDayNum = weekdayMap[schedule.weekday];
+      if (targetDayNum !== undefined) {
+        let diff = (targetDayNum - currentDayNum + 7) % 7;
+        
+        // If the schedule day matches today, check if its startTime has passed
+        if (diff === 0) {
+          const [schedHours, schedMins] = schedule.startTime.split(':').map(Number);
+          const schedTimeToday = new Date(today);
+          schedTimeToday.setHours(schedHours, schedMins, 0, 0);
+          if (today > schedTimeToday) {
+            diff = 7; // schedule has passed for today, so set to 7 days later
+          }
+        }
+
+        if (diff < minDaysDiff) {
+          minDaysDiff = diff;
+          selectedSchedule = schedule;
+        }
+      }
+    });
+
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + minDaysDiff);
+
+    return {
+      date: targetDate.toISOString().split('T')[0],
+      time: selectedSchedule.startTime
+    };
+  };
+
   // Trigger: Fill schedule form
   const handleOpenScheduleCreate = () => {
+    const defaultStudentId = students[0]?.id || '';
+    const nextSched = getNextScheduleData(defaultStudentId);
     setScheduleForm({
-      studentId: students[0]?.id || '',
+      studentId: defaultStudentId,
       subject: students[0]?.subjects?.[0] || '',
       topic: '',
-      date: new Date().toISOString().split('T')[0],
-      time: '14:00',
+      date: nextSched.date,
+      time: nextSched.time,
       totalMarks: 100,
-      reminderMinutes: 60
+      reminderMinutes: 1440
     });
     setEditingScheduleId(null);
     setShowScheduleModal(true);
@@ -885,10 +944,13 @@ export default function ExamsModule() {
                   onChange={(e) => {
                     const id = e.target.value;
                     const stud = students.find(s => s.id === id);
+                    const nextSched = getNextScheduleData(id);
                     setScheduleForm({
                       ...scheduleForm,
                       studentId: id,
-                      subject: stud?.subjects?.[0] || ''
+                      subject: stud?.subjects?.[0] || '',
+                      time: nextSched.time,
+                      date: nextSched.date
                     });
                   }}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
