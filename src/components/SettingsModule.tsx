@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { 
-  CloudRain, ShieldAlert, ShieldCheck, Download, Upload, RotateCcw, CloudLightning, Shield, KeyRound, Monitor, Eye, EyeOff, Save, Trash2, FileSpreadsheet, RefreshCw, Volume2
+  CloudRain, ShieldAlert, ShieldCheck, Download, Upload, RotateCcw, CloudLightning, Shield, KeyRound, Monitor, Eye, EyeOff, Save, Trash2, FileSpreadsheet, RefreshCw, Volume2, Bell
 } from 'lucide-react';
 import { SOUND_PRESETS, playSoundPreset } from '../sound';
 
@@ -25,6 +25,40 @@ export default function SettingsModule() {
   const [firstSound, setFirstSound] = useState(settings.landmarkFirstSound ?? 'crystal');
   const [secondSound, setSecondSound] = useState(settings.landmarkSecondSound ?? 'double');
   const [thirdSound, setThirdSound] = useState(settings.landmarkThirdSound ?? 'triple');
+
+  // Local OS Notification Permission State
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'not-supported'>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'not-supported';
+  });
+
+  const requestNotificationPermission = async () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+        if (permission === 'granted') {
+          new Notification('Notifications Enabled! 🔔', {
+            body: 'You will now receive operating-system level notices on this device.',
+          });
+        }
+      } catch (err: any) {
+        alert('Permission request failed: ' + (err?.message || err));
+      }
+    } else {
+      alert('Local device notifications are not supported by this browser/wrapper environment.');
+    }
+  };
+
+  const testOSNotification = () => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      new Notification('TutorTrack Live Notification 🔔', {
+        body: 'Success! Operating-system level notifications are active on your device.',
+      });
+    }
+  };
 
   // Firebase Config Form State
   const [showConfigForm, setShowConfigForm] = useState(false);
@@ -551,6 +585,65 @@ export default function SettingsModule() {
           >
             <Save size={13} /> Save Landmark Alert Profiles
           </button>
+        </div>
+
+        {/* Device OS Notifications card */}
+        <div className="p-5 bg-white border border-slate-100 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 border-b border-slate-50 pb-3">
+              <Bell className="text-indigo-650" size={18} />
+              <h3 className="font-bold text-slate-800 text-sm font-display">Device OS Notifications</h3>
+            </div>
+
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed font-sans">
+              Enable native operating-system level push alerts directly on your device / APK wrapper when tutor schedules, invoices, or critical system syncs complete.
+            </p>
+
+            <div className="p-4 bg-slate-50 rounded-2xl space-y-2.5 text-xs font-medium text-slate-600 mt-4 font-mono">
+              <div className="flex justify-between items-center font-sans">
+                <span>System Support:</span>
+                <span className={`font-bold uppercase text-[9.5px] px-2 py-0.5 rounded tracking-wide ${
+                  notificationPermission !== 'not-supported' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {notificationPermission !== 'not-supported' ? 'Supported' : 'Unavailable'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center font-sans">
+                <span>Current Permission:</span>
+                <span className={`font-bold uppercase text-[9.5px] px-2 py-0.5 rounded tracking-wide ${
+                  notificationPermission === 'granted' ? 'bg-indigo-100 text-indigo-800' :
+                  notificationPermission === 'denied' ? 'bg-rose-100 text-rose-800' :
+                  'bg-slate-200 text-slate-600'
+                }`}>
+                  {notificationPermission === 'not-supported' ? 'Blocked' : notificationPermission}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2 mt-4">
+            {notificationPermission !== 'granted' && notificationPermission !== 'not-supported' && (
+              <button
+                onClick={requestNotificationPermission}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-705 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Bell size={13} /> Grant OS Permissions
+              </button>
+            )}
+            {notificationPermission === 'granted' && (
+              <button
+                onClick={testOSNotification}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <Bell size={13} /> Send Test Push Notice
+              </button>
+            )}
+            {notificationPermission === 'not-supported' && (
+              <p className="text-[10px] text-slate-400 text-center leading-relaxed font-sans">
+                Notice: Native alerts require an HTTPS origin or secure PWA/APK wrapper framework to request device triggers.
+              </p>
+            )}
+          </div>
         </div>
 
       </div>
