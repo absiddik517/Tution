@@ -27,6 +27,9 @@ export interface Schedule {
   updatedAt: string;
   syncStatus: 'pending' | 'synced';
   previousState?: string;
+  sessionStatus?: 'idle' | 'running' | 'completed';
+  sessionDate?: string; // YYYY-MM-DD
+  sessionStartedAt?: string; // ISO string when running
 }
 
 export interface Attendance {

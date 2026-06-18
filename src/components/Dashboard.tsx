@@ -10,13 +10,37 @@ import { playSoundPreset } from '../sound';
 import { formatDate, formatTime } from '../formatUtils';
 
 export default function Dashboard({ onNavigate }: { onNavigate: (screen: string) => void }) {
-  const { students, schedules, attendance, payments, examSchedules, addAttendance, addNotification, settings, triggerManualSync } = useStore();
+  const { students, schedules, attendance, payments, examSchedules, addAttendance, addNotification, settings, triggerManualSync, updateSchedule } = useStore();
 
-  // 1. LIVE SESSION TIMER STATE
-  const [sessionActive, setSessionActive] = useState(false);
+  // YYYY-MM-DD local date format for clean daily self-resets
+  const todayStr = useMemo(() => {
+    const localDate = new Date();
+    const localY = localDate.getFullYear();
+    const localM = String(localDate.getMonth() + 1).padStart(2, '0');
+    const localD = String(localDate.getDate()).padStart(2, '0');
+    return `${localY}-${localM}-${localD}`;
+  }, []);
+
+  // Derive active session from global synced schedules state
+  const runningSchedule = useMemo(() => {
+    return schedules.find(sc => sc.sessionDate === todayStr && sc.sessionStatus === 'running');
+  }, [schedules, todayStr]);
+
+  const sessionActive = !!runningSchedule;
+  const startedAt = runningSchedule?.sessionStartedAt || null;
+
+  // Local state for dropdown select box (when session is idle)
+  const [dropdownStudentId, setDropdownStudentId] = useState('');
+  const selectedStudentId = sessionActive ? (runningSchedule?.studentId || '') : dropdownStudentId;
+
+  // Function to let dropdown selectors work properly
+  const setSelectedStudentId = (id: string) => {
+    if (!sessionActive) {
+      setDropdownStudentId(id);
+    }
+  };
+
   const [timerSeconds, setTimerSeconds] = useState(0);
-  const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [startedAt, setStartedAt] = useState<string | null>(null);
   const [showLogModal, setShowLogModal] = useState(false);
   const [activeAlert, setActiveAlert] = useState<{ title: string; body: string } | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -31,47 +55,22 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
     }
   }, [activeAlert]);
 
-  // Schedule session states of today: { [scheduleId: string]: 'idle' | 'running' | 'completed' }
-  const [scheduleSessions, setScheduleSessions] = useState<Record<string, 'idle' | 'running' | 'completed'>>(() => {
-    try {
-      const saved = localStorage.getItem('tt_schedule_sessions');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-
   const updateScheduleSessionStatus = (scheduleId: string, status: 'idle' | 'running' | 'completed') => {
-    setScheduleSessions(prev => {
-      const updated = { ...prev };
-      if (status === 'running') {
-        // change any other running session back to idle
-        Object.keys(updated).forEach(key => {
-          if (updated[key] === 'running') {
-            updated[key] = 'idle';
-          }
-        });
-      }
-      updated[scheduleId] = status;
-      localStorage.setItem('tt_schedule_sessions', JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  useEffect(() => {
-    const activeScheduleId = localStorage.getItem('tt_session_schedule_id');
-    const runningStart = localStorage.getItem('tt_session_started_at');
-    if (activeScheduleId && runningStart) {
-      setScheduleSessions(prev => {
-        if (prev[activeScheduleId] !== 'running') {
-          const updated = { ...prev, [activeScheduleId]: 'running' as const };
-          localStorage.setItem('tt_schedule_sessions', JSON.stringify(updated));
-          return updated;
+    if (status === 'running') {
+      // Mark other running schedules to idle
+      schedules.forEach(sc => {
+        if (sc.sessionStatus === 'running' && sc.id !== scheduleId) {
+          updateSchedule(sc.id, { sessionStatus: 'idle', sessionStartedAt: undefined });
         }
-        return prev;
       });
     }
-  }, [sessionActive]);
+
+    updateSchedule(scheduleId, {
+      sessionStatus: status,
+      sessionDate: todayStr,
+      sessionStartedAt: status === 'running' ? new Date().toISOString() : undefined
+    });
+  };
 
   // Attendance Log Form Fields
   const [logDate, setLogDate] = useState('');
@@ -95,19 +94,6 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
   };
 
   const activeStudentsList = useMemo(() => students.filter(s => s.status === 'Active'), [students]);
-
-  // Load from local storage
-  useEffect(() => {
-    const runningStart = localStorage.getItem('tt_session_started_at');
-    const runningStudent = localStorage.getItem('tt_session_student_id');
-    if (runningStart && runningStudent) {
-      setSessionActive(true);
-      setSelectedStudentId(runningStudent);
-      setStartedAt(runningStart);
-      const elapsed = Math.floor((Date.now() - new Date(runningStart).getTime()) / 1000);
-      setTimerSeconds(elapsed > 0 ? elapsed : 0);
-    }
-  }, []);
 
   // Timer Tick
   useEffect(() => {
@@ -154,46 +140,47 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
       }
     };
 
-    const m1 = settings.landmarkFirstAlert ?? 40;
-    const m2 = settings.landmarkSecondAlert ?? 60;
-    const m3 = settings.landmarkThirdAlert ?? 80;
-
     checkAndNotify(m1, m1 * 60, 1); 
     checkAndNotify(m2, m2 * 60, 2); 
     checkAndNotify(m3, m3 * 60, 3); 
 
-  }, [timerSeconds, sessionActive, selectedStudentId, students, addNotification, settings]);
+  }, [timerSeconds, sessionActive, selectedStudentId, students, addNotification, m1, m2, m3]);
 
   const handleStartSession = () => {
-    if (!selectedStudentId) return;
-    const nowISO = new Date().toISOString();
-    localStorage.setItem('tt_session_started_at', nowISO);
-    localStorage.setItem('tt_session_student_id', selectedStudentId);
+    const studentId = dropdownStudentId;
+    if (!studentId) return;
     
-    // Attempt to match with today's scheduled class for this student
-    const matchedTodayClass = todayClasses.find(cl => cl.studentId === selectedStudentId);
-    if (matchedTodayClass) {
-      localStorage.setItem('tt_session_schedule_id', matchedTodayClass.id);
-      updateScheduleSessionStatus(matchedTodayClass.id, 'running');
+    // Find matched today class first
+    let matchedSchedule = todayClasses.find(cl => cl.studentId === studentId);
+    if (!matchedSchedule) {
+      // Find any schedule of this student as container to store status in cloud
+      const studentSchedules = schedules.filter(sc => sc.studentId === studentId);
+      matchedSchedule = studentSchedules[0];
     }
-    
-    setStartedAt(nowISO);
-    setTimerSeconds(0);
-    setSessionActive(true);
+
+    if (matchedSchedule) {
+      updateScheduleSessionStatus(matchedSchedule.id, 'running');
+    } else {
+      alert(`No schedule slots found for this student. Please add at least one class schedule to log live sessions.`);
+    }
   };
 
   const handleStartSessionForStudent = (studentId: string, scheduleId?: string) => {
-    const nowISO = new Date().toISOString();
-    localStorage.setItem('tt_session_started_at', nowISO);
-    localStorage.setItem('tt_session_student_id', studentId);
-    if (scheduleId) {
-      localStorage.setItem('tt_session_schedule_id', scheduleId);
-      updateScheduleSessionStatus(scheduleId, 'running');
+    let targetScheduleId = scheduleId;
+    if (!targetScheduleId) {
+      let matchedSchedule = todayClasses.find(cl => cl.studentId === studentId);
+      if (!matchedSchedule) {
+        const studentSchedules = schedules.filter(sc => sc.studentId === studentId);
+        matchedSchedule = studentSchedules[0];
+      }
+      targetScheduleId = matchedSchedule?.id;
     }
-    setSelectedStudentId(studentId);
-    setStartedAt(nowISO);
-    setTimerSeconds(0);
-    setSessionActive(true);
+
+    if (targetScheduleId) {
+      updateScheduleSessionStatus(targetScheduleId, 'running');
+    } else {
+      alert(`No schedule slots found for this student. Please add at least one class schedule to log live sessions.`);
+    }
   };
 
   const handleStopSession = () => {
@@ -223,16 +210,9 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
   };
 
   const handleDiscardSession = () => {
-    const activeScheduleId = localStorage.getItem('tt_session_schedule_id');
-    if (activeScheduleId) {
-      updateScheduleSessionStatus(activeScheduleId, 'idle');
-      localStorage.removeItem('tt_session_schedule_id');
+    if (runningSchedule) {
+      updateScheduleSessionStatus(runningSchedule.id, 'idle');
     }
-    localStorage.removeItem('tt_session_started_at');
-    localStorage.removeItem('tt_session_student_id');
-    setSessionActive(false);
-    setStartedAt(null);
-    setSelectedStudentId('');
     setShowDiscardConfirm(false);
   };
 
@@ -256,18 +236,10 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
       remarks: `${logSubject}: ${logRemarks}`
     });
 
-    const activeScheduleId = localStorage.getItem('tt_session_schedule_id');
-    if (activeScheduleId) {
-      updateScheduleSessionStatus(activeScheduleId, 'completed');
-      localStorage.removeItem('tt_session_schedule_id');
+    if (runningSchedule) {
+      updateScheduleSessionStatus(runningSchedule.id, 'completed');
     }
 
-    // Clear session timer elements
-    localStorage.removeItem('tt_session_started_at');
-    localStorage.removeItem('tt_session_student_id');
-    setSessionActive(false);
-    setStartedAt(null);
-    setSelectedStudentId('');
     setShowLogModal(false);
   };
 
@@ -293,10 +265,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const todayName = weekdays[new Date().getDay()];
   const todayClasses = useMemo(() => {
-    return schedules.filter(sc => {
-      const student = students.find(s => s.id === sc.studentId);
-      return sc.weekday === todayName && student?.status === 'Active';
-    });
+    return schedules
+      .filter(sc => {
+        const student = students.find(s => s.id === sc.studentId);
+        return sc.weekday === todayName && student?.status === 'Active';
+      })
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [schedules, students, todayName]);
 
   // Overall Attendance Summary (Current Month)
@@ -404,7 +378,8 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
                 'border-l-amber-500 bg-slate-50'
               ];
               const cardColorClass = borderColors[idx % borderColors.length];
-              const sessionStatus = scheduleSessions[cl.id] || 'idle';
+              const isStatusToday = cl.sessionDate === todayStr;
+              const sessionStatus = isStatusToday ? (cl.sessionStatus || 'idle') : 'idle';
               
               return (
                 <div key={cl.id} className={`p-4 rounded-2xl border border-slate-200 border-l-4 hover:border-slate-300 transition flex items-center justify-between gap-3 ${cardColorClass}`}>

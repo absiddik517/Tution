@@ -2,9 +2,41 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { Attendance } from '../types';
 import { 
-  Plus, Calendar, Clock, User, Filter, Search, Trash2, Edit3, X, ClipboardCheck, ArrowUpRight, CheckSquare
+  Plus, Calendar, Clock, User, Filter, Search, Trash2, Edit3, X, ClipboardCheck, CheckSquare, ChevronLeft, ChevronRight, List
 } from 'lucide-react';
 import { formatDate, formatTime } from '../formatUtils';
+
+// Precise custom student highlight badges matching the user's provided screenshot
+const getStudentBadgeStyle = (name: string) => {
+  const n = name.toLowerCase();
+  if (n.includes('sabil')) {
+    return 'bg-[#d32f2f] text-white font-extrabold'; // Coral-red
+  }
+  if (n.includes('ramim')) {
+    return 'bg-[#e67e22] text-white font-extrabold'; // Amber-orange
+  }
+  if (n.includes('arnob') || n.includes('badho')) {
+    return 'bg-[#c0ca33] text-white font-extrabold'; // Yellow-green
+  }
+  if (n.includes('shonai')) {
+    return 'bg-[#10ac84] text-white font-extrabold'; // Minty dark-green
+  }
+  
+  // Balanced default background mapping fallback
+  const colors = [
+    'bg-indigo-700 text-white font-semibold',
+    'bg-pink-600 text-white font-semibold',
+    'bg-purple-600 text-white font-semibold',
+    'bg-emerald-600 text-white font-semibold',
+    'bg-teal-600 text-white font-semibold',
+    'bg-slate-700 text-white font-semibold',
+  ];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h += name.charCodeAt(i);
+  }
+  return colors[h % colors.length];
+};
 
 export default function AttendanceModule() {
   const { 
@@ -18,6 +50,86 @@ export default function AttendanceModule() {
   const [selectedStudentFilter, setSelectedStudentFilter] = useState('All');
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('All');
   const [dateSearchTerm, setDateSearchTerm] = useState('');
+
+  // Main view state: default to 'calendar' as requested
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  // Current calendar view mode: 'day' | 'week' | 'month' (default is 'month' to preserve general views)
+  const [calendarSubMode, setCalendarSubMode] = useState<'day' | 'week' | 'month'>('month');
+  // Date tracker for Calendar state
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+
+  // Hour definitions for Day and Week view matrices
+  const HOUR_SLOTS = useMemo(() => [
+    { label: '9 AM', hour: 9 },
+    { label: '10 AM', hour: 10 },
+    { label: '11 AM', hour: 11 },
+    { label: '12 PM', hour: 12 },
+    { label: '1 PM', hour: 13 },
+    { label: '2 PM', hour: 14 },
+    { label: '3 PM', hour: 15 },
+    { label: '4 PM', hour: 16 },
+    { label: '5 PM', hour: 17 },
+    { label: '6 PM', hour: 18 },
+    { label: '7 PM', hour: 19 },
+    { label: '8 PM', hour: 20 },
+    { label: '9 PM', hour: 21 },
+    { label: '10 PM', hour: 22 },
+    { label: '11 PM', hour: 23 },
+  ], []);
+
+  // Compute the current week's boundary lines
+  const startOfWeek = useMemo(() => {
+    const d = new Date(currentDate);
+    const day = d.getDay();
+    const diff = d.getDate() - day; // Adjust for Sunday (0) start
+    const start = new Date(d.setDate(diff));
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }, [currentDate]);
+
+  const endOfWeek = useMemo(() => {
+    const d = new Date(startOfWeek);
+    d.setDate(d.getDate() + 6);
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }, [startOfWeek]);
+
+  // Seven distinct day dates for current week column mappings
+  const weekDays = useMemo(() => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }, [startOfWeek]);
+
+  // Formatted labels representing active submode scopes
+  const weekLabel = useMemo(() => {
+    const s = startOfWeek;
+    const e = endOfWeek;
+    
+    const sMonth = s.toLocaleString('en-US', { month: 'long' });
+    const eMonth = e.toLocaleString('en-US', { month: 'long' });
+    const sYear = s.getFullYear();
+    const eYear = e.getFullYear();
+
+    if (sYear !== eYear) {
+      return `${sMonth} ${s.getDate()}, ${sYear} – ${eMonth} ${e.getDate()}, ${eYear}`;
+    }
+    if (sMonth !== eMonth) {
+      return `${sMonth} ${s.getDate()} – ${eMonth} ${e.getDate()}, ${sYear}`;
+    }
+    return `${sMonth} ${s.getDate()} – ${e.getDate()}, ${sYear}`;
+  }, [startOfWeek, endOfWeek]);
+
+  const dayLabel = useMemo(() => {
+    const weekday = currentDate.toLocaleString('en-US', { weekday: 'long' });
+    const month = currentDate.toLocaleString('en-US', { month: 'short' });
+    const dayNum = currentDate.getDate();
+    return `${weekday} ${month} ${dayNum}`;
+  }, [currentDate]);
 
   // Add Attendance Form State
   const [formStudentId, setFormStudentId] = useState('');
@@ -109,22 +221,100 @@ export default function AttendanceModule() {
 
   // FILTERED ATTENDANCE DATASET
   const filteredAttendance = useMemo(() => {
-    return attendance.filter(at => {
-      const matchesStudent = selectedStudentFilter === 'All' ? true : at.studentId === selectedStudentFilter;
-      const matchesMonth = selectedMonthFilter === 'All' ? true : at.date.startsWith(selectedMonthFilter);
-      const matchesSearch = dateSearchTerm ? at.date.includes(dateSearchTerm) || at.remarks.toLowerCase().includes(dateSearchTerm.toLowerCase()) : true;
-      return matchesStudent && matchesMonth && matchesSearch;
-    });
+    return attendance
+      .filter(at => {
+        const matchesStudent = selectedStudentFilter === 'All' ? true : at.studentId === selectedStudentFilter;
+        const matchesMonth = selectedMonthFilter === 'All' ? true : at.date.startsWith(selectedMonthFilter);
+        const matchesSearch = dateSearchTerm ? at.date.includes(dateSearchTerm) || at.remarks.toLowerCase().includes(dateSearchTerm.toLowerCase()) : true;
+        return matchesStudent && matchesMonth && matchesSearch;
+      })
+      .sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        return b.entryAt.localeCompare(a.entryAt);
+      });
   }, [attendance, selectedStudentFilter, selectedMonthFilter, dateSearchTerm]);
-
-  // REFRESH METRICS FROM FILTERED DATASET
-  const totalDays = filteredAttendance.length;
-  const totalHours = useMemo(() => {
-    return Math.round(filteredAttendance.reduce((sum, curr) => sum + curr.duration, 0) * 10) / 10;
-  }, [filteredAttendance]);
 
   // Group active students
   const activeStudents = useMemo(() => students.filter(s => s.status === 'Active'), [students]);
+
+  // --- CALENDAR GENERATION LOGIC ---
+  const calendarCells = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+
+    const firstDay = new Date(year, month, 1);
+    const startWeekday = firstDay.getDay(); // 0 is Sunday, 1 is Monday ...
+    
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const prevMonthDays = new Date(year, month, 0).getDate();
+
+    const cells: { dayNum: number; isCurrent: boolean; dateStr: string }[] = [];
+
+    // Prior month overflow (ghost cells)
+    for (let i = startWeekday - 1; i >= 0; i--) {
+      const pDate = new Date(year, month - 1, prevMonthDays - i);
+      const y = pDate.getFullYear();
+      const mStr = String(pDate.getMonth() + 1).padStart(2, '0');
+      const dStr = String(pDate.getDate()).padStart(2, '0');
+      cells.push({
+        dayNum: prevMonthDays - i,
+        isCurrent: false,
+        dateStr: `${y}-${mStr}-${dStr}`
+      });
+    }
+
+    // Active current month cells
+    for (let i = 1; i <= daysInMonth; i++) {
+      const mStr = String(month + 1).padStart(2, '0');
+      const dStr = String(i).padStart(2, '0');
+      cells.push({
+        dayNum: i,
+        isCurrent: true,
+        dateStr: `${year}-${mStr}-${dStr}`
+      });
+    }
+
+    // Subsequent month overflow (ghost cells) up to a tidy multiple of 7 rows (42 blocks)
+    const remaining = 42 - cells.length;
+    for (let i = 1; i <= remaining; i++) {
+      const nDate = new Date(year, month + 1, i);
+      const y = nDate.getFullYear();
+      const mStr = String(nDate.getMonth() + 1).padStart(2, '0');
+      const dStr = String(nDate.getDate()).padStart(2, '0');
+      cells.push({
+        dayNum: i,
+        isCurrent: false,
+        dateStr: `${y}-${mStr}-${dStr}`
+      });
+    }
+
+    return cells;
+  }, [currentDate]);
+
+  const handlePrev = () => {
+    if (calendarSubMode === 'month') {
+      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+    } else if (calendarSubMode === 'week') {
+      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7));
+    } else {
+      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 1));
+    }
+  };
+
+  const handleNext = () => {
+    if (calendarSubMode === 'month') {
+      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+    } else if (calendarSubMode === 'week') {
+      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7));
+    } else {
+      setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
+    }
+  };
+
+  const handleGoToday = () => {
+    setCurrentDate(new Date());
+  };
 
   return (
     <div className="space-y-6">
@@ -132,8 +322,34 @@ export default function AttendanceModule() {
       {/* Top Banner section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Attendance Log Register</h2>
-          <p className="text-xs text-slate-400">Log private tuitions completed, audit teaching hours and output logs</p>
+          <h2 className="text-xl font-extrabold text-slate-800 tracking-tight font-display">Attendance Log Register</h2>
+          <p className="text-xs text-slate-400">View and track completed client classes in an interactive workspace</p>
+        </div>
+
+        {/* Dynamic Mode Switcher */}
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl shrink-0 shadow-inner">
+          <button
+            onClick={() => setViewMode('calendar')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              viewMode === 'calendar' 
+                ? 'bg-white text-indigo-700 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-850'
+            }`}
+          >
+            <Calendar size={14} />
+            Calendar View
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              viewMode === 'list' 
+                ? 'bg-white text-indigo-700 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-850'
+            }`}
+          >
+            <List size={14} />
+            Timeline Register
+          </button>
         </div>
       </div>
 
@@ -143,29 +359,7 @@ export default function AttendanceModule() {
         </div>
       )}
 
-      {/* Aggregate metrics box */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4 bg-indigo-905 bg-slate-900 text-white rounded-2xl">
-          <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest block">Logged Sessions</span>
-          <span className="text-2xl font-bold tracking-tight block mt-1">{totalDays} classes</span>
-          <span className="text-[10px] text-indigo-200 mt-2 block font-medium">Total completed days</span>
-        </div>
-
-        <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-bold">Invoiced hours</span>
-          <span className="text-2xl font-bold text-slate-800 tracking-tight block mt-1">{totalHours} hours</span>
-          <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full inline-block mt-2 font-semibold">
-            Average: {totalDays > 0 ? (Math.round((totalHours / totalDays) * 10) / 10) : 0} hrs/session
-          </span>
-        </div>
-
-        <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm space-y-1.5 flex flex-col justify-center">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-bold">Billing Synchronization</span>
-          <p className="text-xs text-slate-500 leading-snug">
-            Attendance marks are translated directly into payable amounts on the Payments controller screen.
-          </p>
-        </div>
-      </div>
+      {/* Aggregate metrics box is completely removed as requested */}
 
       {/* Filtering tools */}
       <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
@@ -176,7 +370,7 @@ export default function AttendanceModule() {
             <select
               value={selectedStudentFilter}
               onChange={(e) => setSelectedStudentFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-xs font-semibold text-slate-600 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-xs font-bold text-slate-600 focus:outline-none"
             >
               <option value="All">All Students</option>
               {students.map(s => (
@@ -191,11 +385,10 @@ export default function AttendanceModule() {
             <select
               value={selectedMonthFilter}
               onChange={(e) => setSelectedMonthFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-xs font-semibold text-slate-600 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-xs font-bold text-slate-600 focus:outline-none"
             >
               <option value="All">All Months</option>
               {distinctMonths.map(m => {
-                // translate "YYYY-MM" to readable "Month YYYY"
                 const [yearCode, monthNum] = m.split('-');
                 const monthObj = new Date(Number(yearCode), Number(monthNum) - 1, 1);
                 const desc = monthObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
@@ -206,97 +399,471 @@ export default function AttendanceModule() {
 
           {/* Date Search Input */}
           <div className="relative">
-            <Search className="absolute left-3 top-3 text-slate-400" size={15} />
+            <Search className="absolute left-3 top-3.5 text-slate-400" size={13} />
             <input 
               type="text" 
               placeholder="Filter by date (YYYY-MM-DD) or notes..."
               value={dateSearchTerm}
               onChange={(e) => setDateSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold placeholder:text-slate-400 focus:outline-none"
+              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold placeholder:text-slate-400 focus:outline-none"
             />
           </div>
         </div>
       </div>
 
-      {/* Primary Log grid */}
-      <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm space-y-4">
-        <h3 className="text-sm font-bold text-slate-800">Attendance Database Entries ({filteredAttendance.length})</h3>
-
-        {filteredAttendance.length === 0 ? (
-          <div className="text-center py-16 text-slate-400 space-y-2">
-            <ClipboardCheck className="mx-auto text-slate-300 stroke-[1.2]" size={42} />
-            <p className="text-sm font-semibold">No Attendance Records</p>
-            <p className="text-xs max-w-xs mx-auto">
-              No daily session marks align with the query. Press "Log session attendance" above to add new records.
-            </p>
+      {/* RENDER IN PORTRAIT CALENDAR CONTAINER WITH DYNAMIC DAY/WEEK/MONTH INTERACTION */}
+      {viewMode === 'calendar' && (
+        <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            
+            {/* Visual View Selection Sub-indicator Bar matching the sample images */}
+            <div className="flex items-center gap-5">
+              <button 
+                onClick={() => setCalendarSubMode('day')}
+                className={`text-[13px] font-bold pb-2.5 transition relative top-[13px] z-10 ${
+                  calendarSubMode === 'day' 
+                    ? 'text-blue-600 border-b-2 border-blue-600 font-extrabold' 
+                    : 'text-slate-400 hover:text-slate-750'
+                }`}
+              >
+                Day
+              </button>
+              <button 
+                onClick={() => setCalendarSubMode('week')}
+                className={`text-[13px] font-bold pb-2.5 transition relative top-[13px] z-10 ${
+                  calendarSubMode === 'week' 
+                    ? 'text-blue-600 border-b-2 border-blue-600 font-extrabold' 
+                    : 'text-slate-400 hover:text-slate-750'
+                }`}
+              >
+                Week
+              </button>
+              <button 
+                onClick={() => setCalendarSubMode('month')}
+                className={`text-[13px] font-bold pb-2.5 transition relative top-[13px] z-10 ${
+                  calendarSubMode === 'month' 
+                    ? 'text-blue-600 border-b-2 border-blue-600 font-extrabold' 
+                    : 'text-slate-400 hover:text-slate-750'
+                }`}
+              >
+                Month
+              </button>
+            </div>
           </div>
-        ) : (
-          <div className="space-y-3 max-h-120 overflow-y-auto pr-1">
-            {filteredAttendance.map(log => {
-              const student = students.find(s => s.id === log.studentId);
-              return (
-                <div key={log.id} className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-200 transition">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 bg-indigo-50 text-indigo-700 rounded-xl flex items-center justify-center font-bold shrink-0">
-                      {student?.name.charAt(0) || '?'}
-                    </div>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="font-bold text-sm text-slate-800 truncate">{student?.name || 'Unknown client'}</h4>
-                        <span className="text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded shrink-0">
-                          {student?.class}
-                        </span>
-                        {log.syncStatus === 'pending' && (
-                          <span className="w-2 h-2 bg-orange-400 rounded-full inline-block animate-pulse" title="Sync pending to firebase" />
+          {/* Navigable Selector */}
+          <div className="flex items-center justify-between py-2">
+            <button 
+              onClick={handlePrev}
+              className="p-1.5 rounded-xl border border-slate-205 hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition"
+              title="Previous"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <h3 className="font-extrabold text-slate-800 text-sm md:text-base tracking-tight font-display">
+              {calendarSubMode === 'month' && currentDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
+              {calendarSubMode === 'week' && weekLabel}
+              {calendarSubMode === 'day' && dayLabel}
+            </h3>
+            <button 
+              onClick={handleNext}
+              className="p-1.5 rounded-xl border border-slate-205 hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition"
+              title="Next"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          {/* DYNAMIC SUBSECTION: MONTH SUB-MODE */}
+          {calendarSubMode === 'month' && (
+            <>
+              {/* Weekday indicators */}
+              <div className="grid grid-cols-7 text-center border-t border-slate-105 pt-3">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, dIdx) => (
+                  <span key={dIdx} className="text-xs font-bold text-slate-400 py-1">
+                    {day}
+                  </span>
+                ))}
+              </div>
+
+              {/* Day Cells Matrix */}
+              <div className="grid grid-cols-7 border-t border-l border-slate-100 rounded-b-xl overflow-hidden shadow-xs">
+                {calendarCells.map((cell, idx) => {
+                  const cellDate = cell.dateStr;
+                  
+                  // Filter active records matching this cell's date and the selected filters
+                  const dayMatches = filteredAttendance.filter(at => at.date === cellDate);
+                  const isToday = cellDate === new Date().toISOString().substring(0, 10);
+
+                  return (
+                    <div 
+                      key={idx}
+                      onClick={() => {
+                        setFormDate(cellDate);
+                        handleOpenAdd();
+                      }}
+                      className={`min-h-[110px] sm:min-h-[130px] p-1.5 border-r border-b border-slate-100 flex flex-col justify-between transition relative group cursor-pointer ${
+                        cell.isCurrent ? 'bg-white hover:bg-slate-50/50' : 'bg-slate-50/20 text-slate-350'
+                      }`}
+                      title="Click empty grid space to log a new attendance record"
+                    >
+                      
+                      {/* Row showing Date bubble or padded string */}
+                      <div className="flex justify-end pr-0.5">
+                        {isToday ? (
+                          <span className="w-5.5 h-5.5 bg-blue-600 text-white rounded-full flex items-center justify-center font-extrabold text-[10px] shadow-sm">
+                            {cell.dayNum}
+                          </span>
+                        ) : (
+                          <span className={`text-[10px] font-bold ${cell.isCurrent ? 'text-slate-500' : 'text-slate-300'}`}>
+                            {cell.dayNum < 10 ? `0${cell.dayNum}` : cell.dayNum}
+                          </span>
                         )}
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-500 text-xs mt-1 font-medium">
-                        <span className="flex items-center gap-1 text-slate-650 font-semibold bg-white border border-slate-100 px-2 py-0.5 rounded-lg shadow-sm">
-                          <Clock size={13} className="text-indigo-600" />
-                          {formatTime(log.entryAt)} - {formatTime(log.exitAt)}
-                        </span>
-                        <span className="text-slate-400">Date: <span className="text-slate-700 font-bold">{formatDate(log.date)}</span></span>
+                      {/* Badges stack container */}
+                      <div className="flex-1 mt-1 space-y-1 overflow-y-auto max-h-[80px] scrollbar-thin pr-0.5">
+                        {dayMatches.map((log) => {
+                          const student = students.find(s => s.id === log.studentId);
+                          const studentName = student?.name || 'Client';
+
+                          return (
+                            <div
+                              key={log.id}
+                              onClick={(e) => {
+                                e.stopPropagation(); // Block fallback date creation trigger
+                                handleStartEdit(log);
+                              }}
+                              className={`w-full py-0.5 px-1.5 rounded text-[9px] font-extrabold truncate text-center transition hover:brightness-95 active:scale-95 shadow-sm ${getStudentBadgeStyle(studentName)}`}
+                              title={`${studentName}: ${formatTime(log.entryAt)} - ${formatTime(log.exitAt)} (${log.remarks})`}
+                            >
+                              {studentName}
+                            </div>
+                          );
+                        })}
                       </div>
 
-                      {log.remarks && (
-                        <p className="text-[11px] italic text-slate-400 mt-1">
-                          📝 {log.remarks}
-                        </p>
-                      )}
                     </div>
-                  </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
-                  {/* Actions & Duration vertical block on right hand side */}
-                  <div className="flex sm:flex-col items-end justify-center gap-1 pt-2 sm:pt-0 shrink-0 border-t sm:border-t-0 border-slate-100">
-                    <div className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100/50 px-2 py-0.5 rounded-md">
-                      {log.duration} hrs
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Are you sure you want to permanently erase this attendance mark? This will update calculated invoice parameters.`)) {
-                          deleteAttendance(log.id);
-                        }
-                      }}
-                      className="text-[11px] font-semibold text-slate-400 hover:text-red-650 transition flex items-center gap-1"
-                    >
-                      <Trash2 size={11} /> Delete
-                    </button>
-                    <button
-                      onClick={() => handleStartEdit(log)}
-                      className="text-[11px] font-semibold text-indigo-650 hover:text-indigo-900 transition flex items-center gap-1"
-                    >
-                      <Edit3 size={11} /> Edit
-                    </button>
-                  </div>
-
+          {/* DYNAMIC SUBSECTION: WEEK SUB-MODE */}
+          {calendarSubMode === 'week' && (
+            <div className="overflow-x-auto">
+              <div className="min-w-[700px] border border-slate-150 rounded-2xl overflow-hidden bg-slate-55/40">
+                {/* Week View Date and Column header row */}
+                <div className="grid grid-cols-[64px_repeat(7,1fr)] bg-slate-50 border-b border-slate-150 text-center py-3">
+                  <div /> {/* Top left spacer cell */}
+                  {weekDays.map((wd, index) => {
+                    const isToday = wd.toISOString().substring(0, 10) === new Date().toISOString().substring(0, 10);
+                    return (
+                      <div key={index} className="flex flex-col items-center">
+                        <span className={`text-[14px] font-extrabold leading-none ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center font-black shadow-xs' : 'text-slate-800'}`}>
+                          {wd.getDate()}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                          {wd.toLocaleString('en-US', { weekday: 'narrow' })}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+
+                {/* Vertical Hour and day grid panel */}
+                <div className="grid grid-cols-[64px_repeat(7,1fr)] relative" style={{ height: `${HOUR_SLOTS.length * 52}px` }}>
+                  
+                  {/* Hour slots display labels */}
+                  <div className="flex flex-col relative" style={{ height: `${HOUR_SLOTS.length * 52}px` }}>
+                    {HOUR_SLOTS.map((slot, index) => (
+                      <div 
+                        key={index} 
+                        className="absolute left-0 right-0 text-right pr-3 text-[10px] font-bold text-slate-400 flex items-center justify-end select-none"
+                        style={{ top: `${index * 52}px`, height: '52px' }}
+                      >
+                        {slot.label}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Draw helper horizontal grid line layers across */}
+                  <div className="absolute left-[64px] right-0 top-0 bottom-0 pointer-events-none">
+                    {HOUR_SLOTS.map((_, index) => (
+                      <div 
+                        key={index} 
+                        className="absolute left-0 right-0 border-b border-slate-100/80"
+                        style={{ top: `${index * 52}px`, height: '52px' }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* 7 Columns for Sunday to Saturday */}
+                  {weekDays.map((wdDate, dayIdx) => {
+                    const dateStr = wdDate.toISOString().substring(0, 10);
+                    const dayLogs = filteredAttendance.filter(at => at.date === dateStr);
+
+                    return (
+                      <div 
+                        key={dayIdx} 
+                        className="relative border-l border-slate-100 h-full cursor-pointer hover:bg-slate-50/20"
+                        onClick={() => {
+                          setFormDate(dateStr);
+                          setFormEntryAt('15:00');
+                          setFormExitAt('16:30');
+                          handleOpenAdd();
+                        }}
+                      >
+                        {dayLogs.map(log => {
+                          const student = students.find(s => s.id === log.studentId);
+                          const studentName = student?.name || 'Client';
+
+                          // Parse start/end hour marks for absolute scaling
+                          const [entH, entM] = log.entryAt.split(':').map(Number);
+                          const [exH, exM] = log.exitAt.split(':').map(Number);
+                          const entDec = entH + entM / 60;
+                          const exDec = exH + exM / 60;
+
+                          // Scaled view from 9 AM to midnight
+                          const visibleStart = 9;
+                          if (entDec < visibleStart) return null;
+
+                          const topP = (entDec - visibleStart) * 52;
+                          const heightP = (exDec - entDec) * 52;
+
+                          return (
+                            <div
+                              key={log.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartEdit(log);
+                              }}
+                              className={`absolute left-1 right-1 rounded-lg p-1.5 flex flex-col justify-between transition cursor-pointer hover:brightness-95 hover:shadow-sm overflow-hidden select-none border-l-[3px] border-black/10 ${getStudentBadgeStyle(studentName)}`}
+                              style={{ 
+                                top: `${topP + 4}px`, 
+                                height: `${heightP - 8}px`,
+                                minHeight: '28px'
+                              }}
+                              title={`${studentName}: ${formatTime(log.entryAt)} - ${formatTime(log.exitAt)} (${log.remarks})`}
+                            >
+                              <div className="flex flex-col h-full justify-between overflow-hidden">
+                                <span className="text-[10px] font-black leading-tight truncate">{studentName}</span>
+                                {heightP > 40 && (
+                                  <span className="text-[8px] opacity-80 font-bold whitespace-nowrap leading-none mt-0.5">
+                                    {formatTime(log.entryAt)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* DYNAMIC SUBSECTION: DAY SUB-MODE */}
+          {calendarSubMode === 'day' && (
+            <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+              {/* Day View Header Day Initial */}
+              <div className="grid grid-cols-[80px_1fr] bg-slate-50 border-b border-slate-150 py-3 text-center">
+                <div />
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-bold text-slate-400 tracking-wider">
+                    {currentDate.toLocaleString('en-US', { weekday: 'narrow' })}
+                  </span>
+                  <span className="text-sm font-extrabold text-slate-800 leading-none mt-1">
+                    {currentDate.getDate()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Scrollable Hourly schedule card list */}
+              <div className="overflow-x-auto">
+                <div className="min-w-[400px] relative divide-y divide-slate-100" style={{ height: `${HOUR_SLOTS.length * 52}px` }}>
+                  {HOUR_SLOTS.map((slot, index) => {
+                    return (
+                      <div 
+                        key={index} 
+                        className="absolute left-0 right-0 border-b border-slate-100 flex items-center h-[52px]" 
+                        style={{ top: `${index * 52}px` }}
+                        onClick={() => {
+                          const localDateStr = currentDate.toISOString().substring(0, 10);
+                          const formatHStr = String(slot.hour).padStart(2, '0');
+                          const formatDismissHStr = String(Math.min(slot.hour + 1, 23)).padStart(2, '0');
+                          setFormDate(localDateStr);
+                          setFormEntryAt(`${formatHStr}:00`);
+                          setFormExitAt(`${formatDismissHStr}:30`);
+                          handleOpenAdd();
+                        }}
+                      >
+                        {/* Hour Label */}
+                        <div className="w-[80px] text-right pr-4 text-[10px] font-bold text-slate-400 select-none">
+                          {slot.label}
+                        </div>
+                        <div className="flex-1 h-full border-l border-slate-100 relative" />
+                      </div>
+                    );
+                  })}
+
+                  {/* Absolute rendered session logs list for active submode date */}
+                  {(() => {
+                    const activeDateStr = currentDate.toISOString().substring(0, 10);
+                    const dayLogs = filteredAttendance.filter(at => at.date === activeDateStr);
+
+                    return dayLogs.map(log => {
+                      const student = students.find(s => s.id === log.studentId);
+                      const studentName = student?.name || 'Client';
+
+                      // Calculate percentage positions
+                      const [entH, entM] = log.entryAt.split(':').map(Number);
+                      const [exH, exM] = log.exitAt.split(':').map(Number);
+                      const entDec = entH + entM / 60;
+                      const exDec = exH + exM / 60;
+
+                      const visibleStart = 9;
+                      if (entDec < visibleStart) return null;
+
+                      const topP = (entDec - visibleStart) * 52;
+                      const heightP = (exDec - entDec) * 52;
+
+                      return (
+                        <div
+                          key={log.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEdit(log);
+                          }}
+                          className={`absolute left-[80px] right-4 rounded-xl p-3 flex flex-col justify-between transition cursor-pointer hover:brightness-95 hover:shadow-md select-none border-l-4 overflow-hidden border-black/10 ${getStudentBadgeStyle(studentName)}`}
+                          style={{ 
+                            top: `${topP + 4}px`, 
+                            height: `${heightP - 8}px`,
+                            minHeight: '34px'
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-black truncate">{studentName}</span>
+                            <span className="text-[9px] opacity-85 font-black whitespace-nowrap bg-black/10 px-1.5 py-0.5 rounded leading-none">
+                              {formatTime(log.entryAt)} - {formatTime(log.exitAt)} ({log.duration} hrs)
+                            </span>
+                          </div>
+                          {heightP > 60 && log.remarks && (
+                            <p className="text-[10px] opacity-90 line-clamp-2 leading-tight italic mt-1.5 select-none font-medium">
+                              📝 {log.remarks}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* RENDER IN SEQUENTIAL TIMELINE VIEW */}
+      {viewMode === 'list' && (
+        <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm space-y-4">
+          <h3 className="text-sm font-bold text-slate-800">Attendance Database Entries ({filteredAttendance.length})</h3>
+
+          {filteredAttendance.length === 0 ? (
+            <div className="text-center py-16 text-slate-400 space-y-2">
+              <ClipboardCheck className="mx-auto text-slate-300 stroke-[1.2]" size={42} />
+              <p className="text-sm font-semibold">No Attendance Records</p>
+              <p className="text-xs max-w-xs mx-auto">
+                No daily session marks align with the query. Press the "+" action floating button to add new records.
+              </p>
+            </div>
+          ) : (
+            <div className="relative pl-6 border-l border-slate-200 ml-3 py-2 space-y-6 max-h-[600px] overflow-y-auto pr-2">
+              {filteredAttendance.map((log) => {
+                const student = students.find(s => s.id === log.studentId);
+                return (
+                  <div key={log.id} className="relative group animate-in fade-in slide-in-from-left-2 duration-200">
+                    
+                    {/* Timeline Dot Badge Indicator */}
+                    <div className="absolute -left-[35px] top-1.5 flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-full bg-white border-2 border-indigo-600 flex items-center justify-center shadow-sm group-hover:scale-125 transition duration-150">
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-200 hover:bg-white hover:shadow-md transition duration-150">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center font-bold shrink-0 shadow-sm font-display">
+                          {student?.name.charAt(0) || '?'}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-extrabold text-sm text-slate-800 truncate">{student?.name || 'Unknown client'}</h4>
+                            <span className="text-[10px] font-bold text-slate-500 bg-slate-250 px-2 py-0.5 rounded shrink-0 leading-none">
+                              {student?.class}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-slate-500 text-xs mt-2 font-semibold">
+                            <span className="flex items-center gap-1.5 text-slate-700 bg-white border border-slate-100 px-2.5 py-0.5 rounded-lg shadow-xs">
+                              <Clock size={12} className="text-indigo-600" />
+                              {formatTime(log.entryAt)} - {formatTime(log.exitAt)}
+                            </span>
+                            <span className="flex items-center gap-1.5 text-slate-550 bg-white border border-slate-100 px-2.5 py-0.5 rounded-lg shadow-xs">
+                              <Calendar size={12} className="text-indigo-600" />
+                              {formatDate(log.date)}
+                            </span>
+                          </div>
+
+                          {log.remarks && (
+                            <div className="mt-2.5 p-2.5 bg-white border border-slate-105 rounded-xl">
+                              <p className="text-[11px] leading-relaxed text-slate-600 font-sans">
+                                📝 {log.remarks}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Actions & Hours tag */}
+                      <div className="flex sm:flex-col items-center sm:items-end justify-center gap-2 pt-2 sm:pt-0 shrink-0 border-t sm:border-t-0 border-slate-100 w-full sm:w-auto">
+                        <div className="text-xs font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-100/50 px-3 py-1 rounded-lg">
+                          {log.duration} hrs
+                        </div>
+                        <div className="flex items-center gap-x-2.5 sm:gap-x-3 mt-1">
+                          <button
+                            onClick={() => handleStartEdit(log)}
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-850 transition flex items-center gap-1"
+                          >
+                            <Edit3 size={11} /> Edit
+                          </button>
+                          <span className="text-slate-300 sm:hidden">|</span>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to permanently erase this attendance mark?`)) {
+                                deleteAttendance(log.id);
+                              }
+                            }}
+                            className="text-[11px] font-bold text-slate-400 hover:text-red-650 transition flex items-center gap-1"
+                          >
+                            <Trash2 size={11} /> Delete
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* QUICK ATTENDANCE ENTRY DIALOG MODAL */}
       {showAddModal && (
