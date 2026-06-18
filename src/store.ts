@@ -777,6 +777,20 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     const updated = [newNotif, ...get().notifications].slice(0, 30); // limit 30 logs
     TutorTrackDB.setNotifications(updated);
     set({ notifications: updated });
+
+    // Native Device / Hybrid APK Web Notification Trigger
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification(title, {
+            body,
+            icon: '/favicon.svg'
+          });
+        } catch (e) {
+          console.warn('Native local Notification failed to render:', e);
+        }
+      }
+    }
   },
 
   markNotificationRead: (id) => {

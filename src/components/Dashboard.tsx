@@ -422,12 +422,15 @@ export default function Dashboard({ onNavigate }: { onNavigate: (screen: string)
                       {/* Exam Schedule Info Line */}
                       {(() => {
                         const studentExams = examSchedules.filter(ex => ex.studentId === cl.studentId);
-                        const todayStr = new Date().toISOString().split('T')[0];
-                        const todayExam = studentExams.find(ex => ex.date === todayStr);
-                        const nextUpcomingExam = studentExams
-                          .filter(ex => ex.date >= todayStr)
-                          .sort((a, b) => a.date.localeCompare(b.date))[0];
-                        const targetExam = todayExam || nextUpcomingExam;
+                        const todayStrUTC = new Date().toISOString().split('T')[0];
+                        const localDate = new Date();
+                        const localY = localDate.getFullYear();
+                        const localM = String(localDate.getMonth() + 1).padStart(2, '0');
+                        const localD = String(localDate.getDate()).padStart(2, '0');
+                        const todayStrLocal = `${localY}-${localM}-${localD}`;
+
+                        const todayExam = studentExams.find(ex => ex.date === todayStrUTC || ex.date === todayStrLocal);
+                        const targetExam = todayExam;
                         
                         return (
                           <div className="flex items-center gap-1.5 text-[10px] mt-0.5">

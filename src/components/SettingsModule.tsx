@@ -37,11 +37,21 @@ export default function SettingsModule() {
   const requestNotificationPermission = async () => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       try {
-        const permission = await Notification.requestPermission();
+        let permission: NotificationPermission;
+        try {
+          // Modern standard
+          permission = await Notification.requestPermission();
+        } catch (e) {
+          // Callback-based fallback for older browsers & certain webviews
+          permission = await new Promise<NotificationPermission>((resolve) => {
+            Notification.requestPermission(resolve);
+          });
+        }
+        
         setNotificationPermission(permission);
         if (permission === 'granted') {
           new Notification('Notifications Enabled! 🔔', {
-            body: 'You will now receive operating-system level notices on this device.',
+            body: 'You will now receive operating-system level notices on your device.',
           });
         }
       } catch (err: any) {
