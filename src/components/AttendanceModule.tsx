@@ -235,6 +235,18 @@ export default function AttendanceModule() {
       });
   }, [attendance, selectedStudentFilter, selectedMonthFilter, dateSearchTerm]);
 
+  // Group filteredAttendance by date
+  const groupedAttendanceByDate = useMemo(() => {
+    const groups: { [key: string]: typeof filteredAttendance } = {};
+    filteredAttendance.forEach(log => {
+      if (!groups[log.date]) {
+        groups[log.date] = [];
+      }
+      groups[log.date].push(log);
+    });
+    return groups;
+  }, [filteredAttendance]);
+
   // Group active students
   const activeStudents = useMemo(() => students.filter(s => s.status === 'Active'), [students]);
 
@@ -768,10 +780,13 @@ export default function AttendanceModule() {
         </div>
       )}
 
-      {/* RENDER IN SEQUENTIAL TIMELINE VIEW */}
+      {/* RENDER IN GROUPED SEQUENTIAL TABLE VIEW */}
       {viewMode === 'list' && (
-        <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm space-y-4">
-          <h3 className="text-sm font-bold text-slate-800">Attendance Database Entries ({filteredAttendance.length})</h3>
+        <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <h3 className="text-sm font-bold text-slate-800">Attendance Database Entries ({filteredAttendance.length})</h3>
+            <span className="text-xs text-slate-400 font-medium">Grouped by date</span>
+          </div>
 
           {filteredAttendance.length === 0 ? (
             <div className="text-center py-16 text-slate-400 space-y-2">
@@ -782,80 +797,109 @@ export default function AttendanceModule() {
               </p>
             </div>
           ) : (
-            <div className="relative pl-6 border-l border-slate-200 ml-3 py-2 space-y-6 max-h-[600px] overflow-y-auto pr-2">
-              {filteredAttendance.map((log) => {
-                const student = students.find(s => s.id === log.studentId);
+            <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
+              {(Object.entries(groupedAttendanceByDate) as [string, Attendance[]][]).map(([dateStr, logs]) => {
                 return (
-                  <div key={log.id} className="relative group animate-in fade-in slide-in-from-left-2 duration-200">
-                    
-                    {/* Timeline Dot Badge Indicator */}
-                    <div className="absolute -left-[35px] top-1.5 flex items-center justify-center">
-                      <div className="w-4 h-4 rounded-full bg-white border-2 border-indigo-600 flex items-center justify-center shadow-sm group-hover:scale-125 transition duration-150">
-                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                  <div key={dateStr} className="border border-slate-100 rounded-2xl overflow-hidden bg-white shadow-xs">
+                    {/* Date Group Header */}
+                    <div className="bg-slate-50 border-b border-slate-100 px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-indigo-600" />
+                        <span className="text-xs font-bold text-slate-700">{formatDate(dateStr)}</span>
                       </div>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded-full">
+                        {logs.length} {logs.length === 1 ? 'entry' : 'entries'}
+                      </span>
                     </div>
 
-                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-slate-200 hover:bg-white hover:shadow-md transition duration-150">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center font-bold shrink-0 shadow-sm font-display">
-                          {student?.name.charAt(0) || '?'}
-                        </div>
+                    {/* Table presentation for this date */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[550px] border-collapse text-left text-xs text-slate-600">
+                        <thead>
+                          <tr className="bg-slate-50/30 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            <th className="px-4 py-2.5">Student</th>
+                            <th className="px-4 py-2.5">Duration</th>
+                            <th className="px-4 py-2.5">Note</th>
+                            <th className="px-4 py-2.5 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {logs.map((log) => {
+                            const student = students.find(s => s.id === log.studentId);
+                            const studentName = student?.name || 'Unknown client';
+                            return (
+                              <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                                {/* Student Column */}
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 select-none">
+                                      {studentName.charAt(0)}
+                                    </div>
+                                    <div>
+                                      <span className="font-extrabold text-[13px] text-slate-800 block leading-tight">{studentName}</span>
+                                      {student?.class && (
+                                        <span className="text-[9px] font-bold text-slate-405 leading-none">
+                                          {student.class}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-extrabold text-sm text-slate-800 truncate">{student?.name || 'Unknown client'}</h4>
-                            <span className="text-[10px] font-bold text-slate-500 bg-slate-250 px-2 py-0.5 rounded shrink-0 leading-none">
-                              {student?.class}
-                            </span>
-                          </div>
+                                {/* Duration Column */}
+                                <td className="px-4 py-3">
+                                  <div className="space-y-0.5">
+                                    <div className="flex items-center gap-1.5 text-slate-705 font-bold">
+                                      <Clock size={11} className="text-slate-400" />
+                                      <span>{formatTime(log.entryAt)} - {formatTime(log.exitAt)}</span>
+                                    </div>
+                                    <div className="text-[10px] font-extrabold text-indigo-650">
+                                      {log.duration} hrs worked
+                                    </div>
+                                  </div>
+                                </td>
 
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-slate-500 text-xs mt-2 font-semibold">
-                            <span className="flex items-center gap-1.5 text-slate-700 bg-white border border-slate-100 px-2.5 py-0.5 rounded-lg shadow-xs">
-                              <Clock size={12} className="text-indigo-600" />
-                              {formatTime(log.entryAt)} - {formatTime(log.exitAt)}
-                            </span>
-                            <span className="flex items-center gap-1.5 text-slate-550 bg-white border border-slate-100 px-2.5 py-0.5 rounded-lg shadow-xs">
-                              <Calendar size={12} className="text-indigo-600" />
-                              {formatDate(log.date)}
-                            </span>
-                          </div>
+                                {/* Note Column */}
+                                <td className="px-4 py-3 max-w-[200px] md:max-w-[300px]">
+                                  {log.remarks ? (
+                                    <span className="text-[11px] text-slate-500 font-sans italic line-clamp-1 block" title={log.remarks}>
+                                      {log.remarks}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-300 italic">-</span>
+                                  )}
+                                </td>
 
-                          {log.remarks && (
-                            <div className="mt-2.5 p-2.5 bg-white border border-slate-105 rounded-xl">
-                              <p className="text-[11px] leading-relaxed text-slate-600 font-sans">
-                                📝 {log.remarks}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actions & Hours tag */}
-                      <div className="flex sm:flex-col items-center sm:items-end justify-center gap-2 pt-2 sm:pt-0 shrink-0 border-t sm:border-t-0 border-slate-100 w-full sm:w-auto">
-                        <div className="text-xs font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-100/50 px-3 py-1 rounded-lg">
-                          {log.duration} hrs
-                        </div>
-                        <div className="flex items-center gap-x-2.5 sm:gap-x-3 mt-1">
-                          <button
-                            onClick={() => handleStartEdit(log)}
-                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-850 transition flex items-center gap-1"
-                          >
-                            <Edit3 size={11} /> Edit
-                          </button>
-                          <span className="text-slate-300 sm:hidden">|</span>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Are you sure you want to permanently erase this attendance mark?`)) {
-                                deleteAttendance(log.id);
-                              }
-                            }}
-                            className="text-[11px] font-bold text-slate-400 hover:text-red-650 transition flex items-center gap-1"
-                          >
-                            <Trash2 size={11} /> Delete
-                          </button>
-                        </div>
-                      </div>
-
+                                {/* Actions Column */}
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-3.5">
+                                    <button
+                                      onClick={() => handleStartEdit(log)}
+                                      className="text-indigo-600 hover:text-indigo-850 font-bold transition flex items-center gap-1"
+                                      title="Edit Entry"
+                                    >
+                                      <Edit3 size={12} />
+                                      <span>Edit</span>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        if (confirm(`Are you sure you want to permanently erase this attendance mark?`)) {
+                                          deleteAttendance(log.id);
+                                        }
+                                      }}
+                                      className="text-slate-405 hover:text-red-600 font-bold transition flex items-center gap-1"
+                                      title="Delete Entry"
+                                    >
+                                      <Trash2 size={12} />
+                                      <span>Delete</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 );
