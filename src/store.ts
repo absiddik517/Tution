@@ -719,23 +719,32 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
       }));
 
       if (result.success && result.data) {
-        const { students, schedules, attendance, payments, examSchedules = [], examRecords = [] } = result.data as any;
+        const { students = [], schedules = [], attendance = [], payments = [], examSchedules = [], examRecords = [] } = result.data as any;
         
-        // Merge or overwrite
-        if (students.length > 0) TutorTrackDB.setStudents(students);
-        if (schedules.length > 0) TutorTrackDB.setSchedules(schedules);
-        if (attendance.length > 0) TutorTrackDB.setAttendance(attendance);
-        if (payments.length > 0) TutorTrackDB.setPayments(payments);
-        if (examSchedules.length > 0) TutorTrackDB.setExamSchedules(examSchedules);
-        if (examRecords.length > 0) TutorTrackDB.setExamRecords(examRecords);
+        // Unconditionally overwrite database tables
+        TutorTrackDB.setStudents(students);
+         TutorTrackDB.setSchedules(schedules);
+         TutorTrackDB.setAttendance(attendance);
+         TutorTrackDB.setPayments(payments);
+         TutorTrackDB.setExamSchedules(examSchedules);
+         TutorTrackDB.setExamRecords(examRecords);
+
+        const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+        const updatedSettings = {
+          ...get().settings,
+          lastBackupTime: nowStr,
+          deletedRecords: []
+        };
+        TutorTrackDB.setSettings(updatedSettings);
 
         set({
-          students: students.length > 0 ? students : get().students,
-          schedules: schedules.length > 0 ? schedules : get().schedules,
-          attendance: attendance.length > 0 ? attendance : get().attendance,
-          payments: payments.length > 0 ? payments : get().payments,
-          examSchedules: examSchedules.length > 0 ? examSchedules : get().examSchedules,
-          examRecords: examRecords.length > 0 ? examRecords : get().examRecords,
+          students,
+          schedules,
+          attendance,
+          payments,
+          examSchedules,
+          examRecords,
+          settings: updatedSettings
         });
 
         get().addNotification('Firebase Sync Pull Completed', 'Overwrote active dataset with Firebase database cloud tables.', 'system');

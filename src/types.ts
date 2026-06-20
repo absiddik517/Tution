@@ -91,6 +91,7 @@ export interface AppSettings {
     messagingSenderId: string;
     appId: string;
     firestoreDatabaseId?: string;
+    measurementId?: string;
   };
   deletedRecords?: DeletedRecord[];
 }

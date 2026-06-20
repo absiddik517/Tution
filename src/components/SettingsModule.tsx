@@ -4,6 +4,7 @@ import {
   CloudRain, ShieldAlert, ShieldCheck, Download, Upload, RotateCcw, CloudLightning, Shield, KeyRound, Monitor, Eye, EyeOff, Save, Trash2, FileSpreadsheet, RefreshCw, Volume2, Bell
 } from 'lucide-react';
 import { SOUND_PRESETS, playSoundPreset } from '../sound';
+import appletConfig from '../../firebase-applet-config.json';
 
 export default function SettingsModule() {
   const { 
@@ -72,13 +73,14 @@ export default function SettingsModule() {
 
   // Firebase Config Form State
   const [showConfigForm, setShowConfigForm] = useState(false);
-  const [apiKey, setApiKey] = useState(settings.firebaseConfig?.apiKey || 'AIzaSyDzKutBWol_klfnK-0uJ2irEB_uQU6Uhps');
-  const [projectId, setProjectId] = useState(settings.firebaseConfig?.projectId || 'tutor-2026');
-  const [authDomain, setAuthDomain] = useState(settings.firebaseConfig?.authDomain || 'tutor-2026.firebaseapp.com');
-  const [storageBucket, setStorageBucket] = useState(settings.firebaseConfig?.storageBucket || 'tutor-2026.firebasestorage.app');
-  const [messagingSenderId, setMessagingSenderId] = useState(settings.firebaseConfig?.messagingSenderId || '374342880731');
-  const [appId, setAppId] = useState(settings.firebaseConfig?.appId || '1:374342880731:web:e32a447a42d35d9863abfe');
-  const [dbId, setDbId] = useState(settings.firebaseConfig?.firestoreDatabaseId || '(default)');
+  const [apiKey, setApiKey] = useState(settings.firebaseConfig?.apiKey || appletConfig.apiKey);
+  const [projectId, setProjectId] = useState(settings.firebaseConfig?.projectId || appletConfig.projectId);
+  const [authDomain, setAuthDomain] = useState(settings.firebaseConfig?.authDomain || appletConfig.authDomain);
+  const [storageBucket, setStorageBucket] = useState(settings.firebaseConfig?.storageBucket || appletConfig.storageBucket);
+  const [messagingSenderId, setMessagingSenderId] = useState(settings.firebaseConfig?.messagingSenderId || appletConfig.messagingSenderId);
+  const [appId, setAppId] = useState(settings.firebaseConfig?.appId || appletConfig.appId);
+  const [dbId, setDbId] = useState(settings.firebaseConfig?.firestoreDatabaseId || (appletConfig as any).firestoreDatabaseId || '(default)');
+  const [measurementIdState, setMeasurementIdState] = useState(settings.firebaseConfig?.measurementId || (appletConfig as any).measurementId || '');
   const [syncPulling, setSyncPulling] = useState(false);
 
   const handleSaveConfig = (e: React.FormEvent) => {
@@ -94,7 +96,8 @@ export default function SettingsModule() {
       storageBucket,
       messagingSenderId,
       appId,
-      firestoreDatabaseId: dbId || '(default)'
+      firestoreDatabaseId: dbId || '(default)',
+      measurementId: measurementIdState
     });
     alert('Firebase Cloud synchronization parameters saved successfully.');
     setShowConfigForm(false);
@@ -365,6 +368,29 @@ export default function SettingsModule() {
                     value={appId}
                     onChange={(e) => setAppId(e.target.value)}
                     placeholder="1:842:web:6e..."
+                    className="w-full font-mono text-[10px] p-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block">Database ID</label>
+                  <input 
+                    type="text"
+                    value={dbId}
+                    onChange={(e) => setDbId(e.target.value)}
+                    placeholder="(default)"
+                    className="w-full font-mono text-[10px] p-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-slate-400 uppercase block">Measurement ID</label>
+                  <input 
+                    type="text"
+                    value={measurementIdState}
+                    onChange={(e) => setMeasurementIdState(e.target.value)}
+                    placeholder="G-XXXXXX"
                     className="w-full font-mono text-[10px] p-2 bg-white border border-slate-200 rounded-lg focus:outline-none"
                   />
                 </div>

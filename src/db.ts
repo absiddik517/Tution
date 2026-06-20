@@ -346,12 +346,14 @@ export const TutorTrackDB = {
         storageBucket: appletConfig.storageBucket,
         messagingSenderId: appletConfig.messagingSenderId,
         appId: appletConfig.appId,
-        firestoreDatabaseId: appletConfig.firestoreDatabaseId || "(default)"
+        measurementId: (appletConfig as any).measurementId || "",
+        firestoreDatabaseId: (appletConfig as any).firestoreDatabaseId || "(default)"
       }
     };
     const stored = getStored('tt_settings', defaultSettings);
-    if (!stored.firebaseConfig || !stored.firebaseConfig.apiKey) {
+    if (!stored.firebaseConfig || !stored.firebaseConfig.apiKey || stored.firebaseConfig.projectId === 'tutor-2026') {
       stored.firebaseConfig = defaultSettings.firebaseConfig;
+      setStored('tt_settings', stored);
     }
     return stored;
   },
@@ -384,7 +386,8 @@ export const TutorTrackDB = {
         storageBucket: appletConfig.storageBucket,
         messagingSenderId: appletConfig.messagingSenderId,
         appId: appletConfig.appId,
-        firestoreDatabaseId: appletConfig.firestoreDatabaseId || "(default)"
+        measurementId: (appletConfig as any).measurementId || "",
+        firestoreDatabaseId: (appletConfig as any).firestoreDatabaseId || "(default)"
       }
     });
     setStored('tt_notifications', []);

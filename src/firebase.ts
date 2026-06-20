@@ -14,13 +14,23 @@ export interface FirebaseConfig {
   messagingSenderId: string;
   appId: string;
   firestoreDatabaseId?: string;
+  measurementId?: string;
 }
 
 export function getActiveConfig(customConfig?: FirebaseConfig | null): FirebaseConfig {
   if (customConfig && customConfig.apiKey && customConfig.projectId) {
     return customConfig;
   }
-  return appletConfig as FirebaseConfig;
+  return {
+    apiKey: appletConfig.apiKey,
+    authDomain: appletConfig.authDomain,
+    projectId: appletConfig.projectId,
+    storageBucket: appletConfig.storageBucket,
+    messagingSenderId: appletConfig.messagingSenderId,
+    appId: appletConfig.appId,
+    measurementId: (appletConfig as any).measurementId || "",
+    firestoreDatabaseId: (appletConfig as any).firestoreDatabaseId || "(default)"
+  };
 }
 
 export function isFirebaseConfigured(config: FirebaseConfig | null | undefined): boolean {
@@ -138,6 +148,60 @@ function sanitizeForFirestore(val: any): any {
   return val;
 }
 
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, config?: FirebaseConfig | null) {
+  let authUser: any = null;
+  try {
+    const authInstance = getFirebaseAuth(config);
+    authUser = authInstance.currentUser;
+  } catch (e) {
+    // Auth might not be ready
+  }
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: authUser?.uid || null,
+      email: authUser?.email || null,
+      emailVerified: authUser?.emailVerified || null,
+      isAnonymous: authUser?.isAnonymous || null,
+      tenantId: authUser?.tenantId || null,
+      providerInfo: authUser?.providerData?.map((p: any) => ({
+        providerId: p.providerId,
+        email: p.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error Details: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 export async function syncLocalToFirebase(
   config: FirebaseConfig,
   currentUserId: string,
@@ -153,14 +217,19 @@ export async function syncLocalToFirebase(
 ): Promise<{ success: boolean; count: number; error?: string }> {
   try {
     const db = getFirebaseDb(config);
-    const userId = currentUserId || 'tutor-default'; // Partitioned by active authenticated user ID
+    const userId = currentUserId || 'tutor-default';
     let syncCount = 0;
 
     // Process deletions if any exist
     if (data.deletedRecords && data.deletedRecords.length > 0) {
       for (const del of data.deletedRecords) {
-        const docRef = doc(db, 'tutors', userId, del.collectionName, del.id);
-        await deleteDoc(docRef);
+        const docPath = `tutors/${userId}/${del.collectionName}/${del.id}`;
+        try {
+          const docRef = doc(db, 'tutors', userId, del.collectionName, del.id);
+          await deleteDoc(docRef);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, docPath, config);
+        }
       }
     }
 
@@ -168,13 +237,18 @@ export async function syncLocalToFirebase(
     const syncCollection = async (collectionName: string, items: any[]) => {
       for (const item of items) {
         const docRef = doc(db, 'tutors', userId, collectionName, item.id);
-        const uploadPayload = sanitizeForFirestore({
-          ...item,
-          syncStatus: 'synced',
-          synchronizedAt: new Date().toISOString(),
-        });
-        await setDoc(docRef, uploadPayload, { merge: true });
-        syncCount++;
+        const docPath = `tutors/${userId}/${collectionName}/${item.id}`;
+        try {
+          const uploadPayload = sanitizeForFirestore({
+            ...item,
+            syncStatus: 'synced',
+            synchronizedAt: new Date().toISOString(),
+          });
+          await setDoc(docRef, uploadPayload, { merge: true });
+          syncCount++;
+        } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, docPath, config);
+        }
       }
     };
 
@@ -213,12 +287,18 @@ export async function fetchFromFirebase(
     const userId = currentUserId || 'tutor-default';
 
     const fetchCollection = async (collectionName: string): Promise<any[]> => {
-      const snap = await getDocs(collection(db, 'tutors', userId, collectionName));
-      const list: any[] = [];
-      snap.forEach(docSnap => {
-        list.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      return list;
+      const collPath = `tutors/${userId}/${collectionName}`;
+      try {
+        const snap = await getDocs(collection(db, 'tutors', userId, collectionName));
+        const list: any[] = [];
+        snap.forEach(docSnap => {
+          list.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        return list;
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, collPath, config);
+        return [];
+      }
     };
 
     const students = await fetchCollection('students');
