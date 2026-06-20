@@ -25,7 +25,7 @@ export default function ExamsModule() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudentFilter, setSelectedStudentFilter] = useState('All');
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('All');
-  const [plannerFilter, setPlannerFilter] = useState<'Pending' | 'Today' | 'Complete' | 'All'>('Pending');
+  const [plannerFilter, setPlannerFilter] = useState<'Pending' | 'Today' | 'Complete' | 'All'>('Today');
   const [selectedAnalyticsStudentId, setSelectedAnalyticsStudentId] = useState<string>(() => {
     return students[0]?.id || '';
   });
@@ -156,15 +156,27 @@ export default function ExamsModule() {
 
   // Key KPI metrics calculators
   const kpis = useMemo(() => {
-    const upcomingCount = examSchedules.filter(ex => new Date(ex.date) >= new Date()).length;
-    const completedCount = examRecords.length;
+    const targetSchedules = selectedStudentFilter === 'All'
+      ? examSchedules
+      : examSchedules.filter(ex => ex.studentId === selectedStudentFilter);
+
+    const targetRecords = selectedStudentFilter === 'All'
+      ? examRecords
+      : examRecords.filter(er => er.studentId === selectedStudentFilter);
+
+    const upcomingCount = targetSchedules.filter(ex => {
+      const isCompleted = examRecords.some(er => er.examScheduleId === ex.id);
+      return !isCompleted;
+    }).length;
+
+    const completedCount = targetRecords.length;
     
     // Average Grade score pct percentage
     let totalScorePctSum = 0;
     let gradedRecordsCount = 0;
     let passCount = 0;
 
-    examRecords.forEach(rec => {
+    targetRecords.forEach(rec => {
       if (rec.status !== 'Awaiting') {
         const pct = rec.totalMarks > 0 ? (rec.marksObtained / rec.totalMarks) * 100 : 0;
         totalScorePctSum += pct;
@@ -176,7 +188,7 @@ export default function ExamsModule() {
     });
 
     const averageScore = gradedRecordsCount > 0 ? Math.round(totalScorePctSum / gradedRecordsCount) : 0;
-    const passRate = examRecords.length > 0 ? Math.round((passCount / examRecords.length) * 100) : 0;
+    const passRate = targetRecords.length > 0 ? Math.round((passCount / targetRecords.length) * 100) : 0;
 
     return {
       upcomingCount,
@@ -184,7 +196,7 @@ export default function ExamsModule() {
       averageScore,
       passRate
     };
-  }, [examSchedules, examRecords]);
+  }, [examSchedules, examRecords, selectedStudentFilter]);
 
   // Subject performance matrix for SELECTED individual student
   const selectedStudentSubjectPerformance = useMemo(() => {
@@ -508,10 +520,10 @@ export default function ExamsModule() {
       <div className="bg-white border border-slate-200 p-4 rounded-3xl shadow-sm space-y-4 lg:space-y-0 lg:flex lg:items-center lg:justify-between" id="exams-toolbar-container">
         
         {/* Toggle selectors */}
-        <div className="flex gap-1.5 bg-slate-100 p-1 rounded-2xl w-fit" id="exams-tabs">
+        <div className="flex gap-1.5 bg-slate-100 p-1 rounded-2xl overflow-x-auto scrollbar-none max-w-full shrink-0 flex-nowrap w-full sm:w-fit" id="exams-tabs">
           <button
             onClick={() => setActiveTab('planner')}
-            className={`py-2 px-4 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            className={`py-2 px-4 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
               activeTab === 'planner'
                 ? 'bg-white text-indigo-700 shadow-sm'
                 : 'text-slate-600 hover:bg-slate-200/50'
@@ -522,7 +534,7 @@ export default function ExamsModule() {
           </button>
           <button
             onClick={() => setActiveTab('gradebook')}
-            className={`py-2 px-4 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            className={`py-2 px-4 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
               activeTab === 'gradebook'
                 ? 'bg-white text-indigo-700 shadow-sm'
                 : 'text-slate-600 hover:bg-slate-200/50'
@@ -533,7 +545,7 @@ export default function ExamsModule() {
           </button>
           <button
             onClick={() => setActiveTab('analytics')}
-            className={`py-2 px-4 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            className={`py-2 px-4 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
               activeTab === 'analytics'
                 ? 'bg-white text-indigo-700 shadow-sm'
                 : 'text-slate-600 hover:bg-slate-200/50'
@@ -666,24 +678,37 @@ export default function ExamsModule() {
             </div>
           ) : (
             filteredSchedules.map(ex => {
-              const isExpired = new Date(ex.date) < new Date();
+              const todayStr = new Date().toISOString().split('T')[0];
+              const isToday = ex.date === todayStr;
               const hasRecordLink = examRecords.some(er => er.examScheduleId === ex.id);
+              
+              const statusTag: 'Pending' | 'Today' | 'Complete' = hasRecordLink
+                ? 'Complete'
+                : isToday
+                  ? 'Today'
+                  : 'Pending';
 
               return (
                 <div 
                   key={ex.id} 
                   className={`bg-white border rounded-[28px] p-5 shadow-sm hover:shadow-md transition duration-250 flex flex-col justify-between space-y-4 relative overflow-hidden ${
-                    isExpired ? 'border-slate-200 bg-slate-50/50' : 'border-indigo-100 ring-2 ring-indigo-500/5'
+                    statusTag === 'Complete' 
+                      ? 'border-emerald-150 bg-slate-50/40' 
+                      : statusTag === 'Today'
+                        ? 'border-amber-200 ring-2 ring-amber-500/5'
+                        : 'border-indigo-150 ring-2 ring-indigo-500/5'
                   }`}
                 >
                   {/* Badge */}
                   <div className="absolute top-0 right-0">
                     <span className={`text-[8.5px] font-black uppercase px-3.5 py-1 rounded-bl-xl border-l border-b ${
-                      isExpired 
-                        ? 'bg-slate-100 text-slate-500 border-slate-200' 
-                        : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                      statusTag === 'Complete'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                        : statusTag === 'Today'
+                          ? 'bg-amber-50 text-amber-700 border-amber-100 animate-pulse'
+                          : 'bg-indigo-50 text-indigo-700 border-indigo-100'
                     }`}>
-                      {isExpired ? 'Expired' : 'Active'}
+                      {statusTag}
                     </span>
                   </div>
 
@@ -724,35 +749,39 @@ export default function ExamsModule() {
 
                   {/* Action row footer */}
                   <div className="border-t border-slate-100 pt-3.5 flex items-center gap-1.5 justify-between">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleOpenScheduleEdit(ex)}
-                        className="p-2 border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-800 rounded-xl transition"
-                        title="Edit schedule details"
-                      >
-                        <Edit2 size={12} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (confirm('Are you sure you want to delete this schedule? This cannot be undone.')) {
-                            deleteExamSchedule(ex.id);
-                          }
-                        }}
-                        className="p-2 border border-slate-200 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition"
-                        title="Delete schedule slot"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                    <div className="flex items-center gap-1 min-h-[36px]">
+                      {statusTag !== 'Complete' && (
+                        <>
+                          <button
+                            onClick={() => handleOpenScheduleEdit(ex)}
+                            className="p-2 border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-800 rounded-xl transition cursor-pointer"
+                            title="Edit schedule details"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to delete this schedule? This cannot be undone.')) {
+                                deleteExamSchedule(ex.id);
+                              }
+                            }}
+                            className="p-2 border border-slate-200 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition cursor-pointer"
+                            title="Delete schedule slot"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </>
+                      )}
                     </div>
 
                     {hasRecordLink ? (
-                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 py-1.5 px-2.5 rounded-xl flex items-center gap-1">
-                        <CheckCircle2 size={12} /> Logged
+                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 py-1.5 px-2.5 rounded-xl flex items-center gap-1 shadow-xs">
+                        <CheckCircle2 size={12} /> Graded Log
                       </span>
                     ) : (
                       <button
                         onClick={() => handleLogMarksFromSchedule(ex)}
-                        className="py-1.5 px-3 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95"
+                        className="py-1.5 px-3 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95 cursor-pointer"
                       >
                         <GraduationCap size={13} />
                         Log Score

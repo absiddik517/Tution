@@ -159,12 +159,8 @@ export async function syncLocalToFirebase(
     // Process deletions if any exist
     if (data.deletedRecords && data.deletedRecords.length > 0) {
       for (const del of data.deletedRecords) {
-        try {
-          const docRef = doc(db, 'tutors', userId, del.collectionName, del.id);
-          await deleteDoc(docRef);
-        } catch (delError) {
-          console.error(`Failed to delete document ${del.id} from ${del.collectionName}:`, delError);
-        }
+        const docRef = doc(db, 'tutors', userId, del.collectionName, del.id);
+        await deleteDoc(docRef);
       }
     }
 

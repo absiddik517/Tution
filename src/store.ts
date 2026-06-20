@@ -175,6 +175,10 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
   deleteStudent: (id) => {
     const deletedStudent = get().students.find(s => s.id === id);
     const affectedSchedules = get().schedules.filter(sch => sch.studentId === id);
+    const affectedAttendance = get().attendance.filter(at => at.studentId === id);
+    const affectedPayments = get().payments.filter(py => py.studentId === id);
+    const affectedExamSchedules = get().examSchedules.filter(ex => ex.studentId === id);
+    const affectedExamRecords = get().examRecords.filter(er => er.studentId === id);
     
     const queueDeletes: any[] = [];
     if (deletedStudent) {
@@ -183,11 +187,36 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     affectedSchedules.forEach(sc => {
       queueDeletes.push({ id: sc.id, collectionName: 'schedules' as const, snapshot: sc });
     });
+    affectedAttendance.forEach(at => {
+      queueDeletes.push({ id: at.id, collectionName: 'attendance' as const, snapshot: at });
+    });
+    affectedPayments.forEach(py => {
+      queueDeletes.push({ id: py.id, collectionName: 'payments' as const, snapshot: py });
+    });
+    affectedExamSchedules.forEach(ex => {
+      queueDeletes.push({ id: ex.id, collectionName: 'examSchedules' as const, snapshot: ex });
+    });
+    affectedExamRecords.forEach(er => {
+      queueDeletes.push({ id: er.id, collectionName: 'examRecords' as const, snapshot: er });
+    });
 
     const updated = get().students.filter(s => s.id !== id);
     TutorTrackDB.setStudents(updated);
+    
     const updatedSchedules = get().schedules.filter(sch => sch.studentId !== id);
     TutorTrackDB.setSchedules(updatedSchedules);
+
+    const updatedAttendance = get().attendance.filter(at => at.studentId !== id);
+    TutorTrackDB.setAttendance(updatedAttendance);
+
+    const updatedPayments = get().payments.filter(py => py.studentId !== id);
+    TutorTrackDB.setPayments(updatedPayments);
+
+    const updatedExamSchedules = get().examSchedules.filter(ex => ex.studentId !== id);
+    TutorTrackDB.setExamSchedules(updatedExamSchedules);
+
+    const updatedExamRecords = get().examRecords.filter(er => er.studentId !== id);
+    TutorTrackDB.setExamRecords(updatedExamRecords);
 
     const existingDeletes = get().settings.deletedRecords || [];
     const updatedSettings = {
@@ -199,9 +228,13 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     set({ 
       students: updated, 
       schedules: updatedSchedules,
+      attendance: updatedAttendance,
+      payments: updatedPayments,
+      examSchedules: updatedExamSchedules,
+      examRecords: updatedExamRecords,
       settings: updatedSettings
     });
-    get().addNotification('Student Removed', 'Related scheduling slots and records cleared.', 'system');
+    get().addNotification('Student Removed', 'Related scheduling slots, lessons, payments, and exams cleared.', 'system');
   },
 
   // SCHEDULE ACTIONS

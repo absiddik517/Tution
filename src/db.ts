@@ -1,4 +1,5 @@
 import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification, ExamSchedule, ExamRecord } from './types';
+import appletConfig from '../firebase-applet-config.json';
 
 // Default initial mock data
 const DEFAULT_STUDENTS: Student[] = [
@@ -339,13 +340,13 @@ export const TutorTrackDB = {
       backupSuccessCount: 0,
       deletedRecords: [],
       firebaseConfig: {
-        apiKey: "AIzaSyDzKutBWol_klfnK-0uJ2irEB_uQU6Uhps",
-        authDomain: "tutor-2026.firebaseapp.com",
-        projectId: "tutor-2026",
-        storageBucket: "tutor-2026.firebasestorage.app",
-        messagingSenderId: "374342880731",
-        appId: "1:374342880731:web:e32a447a42d35d9863abfe",
-        firestoreDatabaseId: "(default)"
+        apiKey: appletConfig.apiKey,
+        authDomain: appletConfig.authDomain,
+        projectId: appletConfig.projectId,
+        storageBucket: appletConfig.storageBucket,
+        messagingSenderId: appletConfig.messagingSenderId,
+        appId: appletConfig.appId,
+        firestoreDatabaseId: appletConfig.firestoreDatabaseId || "(default)"
       }
     };
     const stored = getStored('tt_settings', defaultSettings);
@@ -377,13 +378,13 @@ export const TutorTrackDB = {
       backupSuccessCount: 0,
       deletedRecords: [],
       firebaseConfig: {
-        apiKey: "AIzaSyDzKutBWol_klfnK-0uJ2irEB_uQU6Uhps",
-        authDomain: "tutor-2026.firebaseapp.com",
-        projectId: "tutor-2026",
-        storageBucket: "tutor-2026.firebasestorage.app",
-        messagingSenderId: "374342880731",
-        appId: "1:374342880731:web:e32a447a42d35d9863abfe",
-        firestoreDatabaseId: "(default)"
+        apiKey: appletConfig.apiKey,
+        authDomain: appletConfig.authDomain,
+        projectId: appletConfig.projectId,
+        storageBucket: appletConfig.storageBucket,
+        messagingSenderId: appletConfig.messagingSenderId,
+        appId: appletConfig.appId,
+        firestoreDatabaseId: appletConfig.firestoreDatabaseId || "(default)"
       }
     });
     setStored('tt_notifications', []);
