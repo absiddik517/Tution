@@ -340,18 +340,18 @@ export const TutorTrackDB = {
       backupSuccessCount: 0,
       deletedRecords: [],
       firebaseConfig: {
-        apiKey: appletConfig.apiKey,
-        authDomain: appletConfig.authDomain,
-        projectId: appletConfig.projectId,
-        storageBucket: appletConfig.storageBucket,
-        messagingSenderId: appletConfig.messagingSenderId,
-        appId: appletConfig.appId,
-        measurementId: (appletConfig as any).measurementId || "",
-        firestoreDatabaseId: (appletConfig as any).firestoreDatabaseId || "(default)"
+        apiKey: "AIzaSyDzKutBWol_klfnK-0uJ2irEB_uQU6Uhps",
+        authDomain: "tutor-2026.firebaseapp.com",
+        projectId: "tutor-2026",
+        storageBucket: "tutor-2026.firebasestorage.app",
+        messagingSenderId: "374342880731",
+        appId: "1:374342880731:web:e32a447a42d35d9863abfe",
+        measurementId: "G-51LX4WM5BG",
+        firestoreDatabaseId: "(default)"
       }
     };
     const stored = getStored('tt_settings', defaultSettings);
-    if (!stored.firebaseConfig || !stored.firebaseConfig.apiKey || stored.firebaseConfig.projectId === 'tutor-2026') {
+    if (!stored.firebaseConfig || !stored.firebaseConfig.apiKey || stored.firebaseConfig.projectId !== 'tutor-2026') {
       stored.firebaseConfig = defaultSettings.firebaseConfig;
       setStored('tt_settings', stored);
     }
@@ -380,14 +380,14 @@ export const TutorTrackDB = {
       backupSuccessCount: 0,
       deletedRecords: [],
       firebaseConfig: {
-        apiKey: appletConfig.apiKey,
-        authDomain: appletConfig.authDomain,
-        projectId: appletConfig.projectId,
-        storageBucket: appletConfig.storageBucket,
-        messagingSenderId: appletConfig.messagingSenderId,
-        appId: appletConfig.appId,
-        measurementId: (appletConfig as any).measurementId || "",
-        firestoreDatabaseId: (appletConfig as any).firestoreDatabaseId || "(default)"
+        apiKey: "AIzaSyDzKutBWol_klfnK-0uJ2irEB_uQU6Uhps",
+        authDomain: "tutor-2026.firebaseapp.com",
+        projectId: "tutor-2026",
+        storageBucket: "tutor-2026.firebasestorage.app",
+        messagingSenderId: "374342880731",
+        appId: "1:374342880731:web:e32a447a42d35d9863abfe",
+        measurementId: "G-51LX4WM5BG",
+        firestoreDatabaseId: "(default)"
       }
     });
     setStored('tt_notifications', []);

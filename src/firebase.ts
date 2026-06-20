@@ -22,14 +22,14 @@ export function getActiveConfig(customConfig?: FirebaseConfig | null): FirebaseC
     return customConfig;
   }
   return {
-    apiKey: appletConfig.apiKey,
-    authDomain: appletConfig.authDomain,
-    projectId: appletConfig.projectId,
-    storageBucket: appletConfig.storageBucket,
-    messagingSenderId: appletConfig.messagingSenderId,
-    appId: appletConfig.appId,
-    measurementId: (appletConfig as any).measurementId || "",
-    firestoreDatabaseId: (appletConfig as any).firestoreDatabaseId || "(default)"
+    apiKey: "AIzaSyDzKutBWol_klfnK-0uJ2irEB_uQU6Uhps",
+    authDomain: "tutor-2026.firebaseapp.com",
+    projectId: "tutor-2026",
+    storageBucket: "tutor-2026.firebasestorage.app",
+    messagingSenderId: "374342880731",
+    appId: "1:374342880731:web:e32a447a42d35d9863abfe",
+    measurementId: "G-51LX4WM5BG",
+    firestoreDatabaseId: "(default)"
   };
 }
 
@@ -45,7 +45,7 @@ export function initializeFirebase(customConfig?: FirebaseConfig | null) {
 
   const configKey = config.projectId;
   const existingApps = getApps();
-  const appName = configKey === appletConfig.projectId ? '[DEFAULT]' : configKey;
+  const appName = configKey === 'tutor-2026' || configKey === appletConfig.projectId ? '[DEFAULT]' : configKey;
   
   let app: FirebaseApp;
   const matchedApp = existingApps.find(a => a.name === appName);
