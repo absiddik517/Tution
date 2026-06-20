@@ -25,6 +25,10 @@ export default function ExamsModule() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudentFilter, setSelectedStudentFilter] = useState('All');
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState('All');
+  const [plannerFilter, setPlannerFilter] = useState<'Pending' | 'Today' | 'Complete' | 'All'>('Pending');
+  const [selectedAnalyticsStudentId, setSelectedAnalyticsStudentId] = useState<string>(() => {
+    return students[0]?.id || '';
+  });
 
   // Form states - Exam Schedule
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -85,6 +89,13 @@ export default function ExamsModule() {
     return () => clearInterval(interval);
   }, [examSchedules, students, addNotification, updateExamSchedule]);
 
+  // Sync selectedAnalyticsStudentId with first student when available
+  useEffect(() => {
+    if (!selectedAnalyticsStudentId && students.length > 0) {
+      setSelectedAnalyticsStudentId(students[0].id);
+    }
+  }, [students, selectedAnalyticsStudentId]);
+
   // Unique lists of subjects currently listed in the directory to ease selector dropdowns
   const availableSubjects = useMemo(() => {
     const list = new Set<string>();
@@ -96,17 +107,38 @@ export default function ExamsModule() {
 
   // Filter schedules
   const filteredSchedules = useMemo(() => {
-    return examSchedules.filter(ex => {
-      const student = students.find(s => s.id === ex.studentId);
-      const matchesSearch = 
-        ex.subject.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        ex.topic.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        (student && student.name.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesStudent = selectedStudentFilter === 'All' || ex.studentId === selectedStudentFilter;
-      const matchesSubject = selectedSubjectFilter === 'All' || ex.subject === selectedSubjectFilter;
-      return matchesSearch && matchesStudent && matchesSubject;
-    });
-  }, [examSchedules, students, searchTerm, selectedStudentFilter, selectedSubjectFilter]);
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    return examSchedules
+      .filter(ex => {
+        const student = students.find(s => s.id === ex.studentId);
+        const matchesSearch = 
+          ex.subject.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          ex.topic.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          (student && student.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesStudent = selectedStudentFilter === 'All' || ex.studentId === selectedStudentFilter;
+        const matchesSubject = selectedSubjectFilter === 'All' || ex.subject === selectedSubjectFilter;
+        if (!matchesSearch || !matchesStudent || !matchesSubject) return false;
+
+        const isCompleted = examRecords.some(er => er.examScheduleId === ex.id);
+
+        if (plannerFilter === 'Pending') {
+          return !isCompleted;
+        } else if (plannerFilter === 'Today') {
+          return ex.date === todayStr;
+        } else if (plannerFilter === 'Complete') {
+          return isCompleted;
+        } else {
+          return true; // 'All'
+        }
+      })
+      .sort((a, b) => {
+        // Sort by exam date and time asc
+        const dateCompare = a.date.localeCompare(b.date);
+        if (dateCompare !== 0) return dateCompare;
+        return a.time.localeCompare(b.time);
+      });
+  }, [examSchedules, students, examRecords, searchTerm, selectedStudentFilter, selectedSubjectFilter, plannerFilter]);
 
   // Filter records
   const filteredRecords = useMemo(() => {
@@ -154,12 +186,12 @@ export default function ExamsModule() {
     };
   }, [examSchedules, examRecords]);
 
-  // Recharts payload data mapping: Subject performance matrix
-  const subjectPerformanceData = useMemo(() => {
+  // Subject performance matrix for SELECTED individual student
+  const selectedStudentSubjectPerformance = useMemo(() => {
     const dataMap: { [subject: string]: { totalMarks: number, marksObtained: number, count: number } } = {};
     
     examRecords.forEach(rec => {
-      if (rec.status === 'Passed' || rec.status === 'Failed') {
+      if (rec.studentId === selectedAnalyticsStudentId && (rec.status === 'Passed' || rec.status === 'Failed')) {
         if (!dataMap[rec.subject]) {
           dataMap[rec.subject] = { totalMarks: 0, marksObtained: 0, count: 0 };
         }
@@ -174,31 +206,62 @@ export default function ExamsModule() {
       const avgPercentage = totalMarks > 0 ? Math.round((marksObtained / totalMarks) * 100) : 0;
       return {
         subject,
-        'Avg Performance %': avgPercentage,
+        'Avg Performance %': avgPercentage > 100 ? 100 : avgPercentage,
         'Total Tests': dataMap[subject].count
       };
     });
-  }, [examRecords]);
+  }, [examRecords, selectedAnalyticsStudentId]);
 
-  // Recharts payload data mapping: Students rankings
-  const studentRankPerformance = useMemo(() => {
-    const list = students.map(stud => {
-      const studRecords = examRecords.filter(er => er.studentId === stud.id && (er.status === 'Passed' || er.status === 'Failed'));
-      let totalPctSum = 0;
-      studRecords.forEach(rec => {
-        const pct = rec.totalMarks > 0 ? (rec.marksObtained / rec.totalMarks) * 100 : 0;
-        totalPctSum += pct;
-      });
-      const score = studRecords.length > 0 ? Math.round(totalPctSum / studRecords.length) : 0;
+  // Selected student individual progress over time (chronological)
+  const selectedStudentProgressOverTime = useMemo(() => {
+    const records = examRecords
+      .filter(rec => rec.studentId === selectedAnalyticsStudentId && (rec.status === 'Passed' || rec.status === 'Failed'))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return records.map(rec => {
+      const percentage = rec.totalMarks > 0 ? Math.round((rec.marksObtained / rec.totalMarks) * 100) : 0;
       return {
-        name: stud.name,
-        'Avg Score %': score,
-        'Exams Completed': studRecords.length
+        date: formatDate(rec.date),
+        rawDate: rec.date,
+        subject: rec.subject,
+        topic: rec.topic,
+        'Score %': percentage,
+        displayLabel: `${rec.subject} - ${rec.topic}`,
+        marksLabel: `${rec.marksObtained}/${rec.totalMarks}`
       };
-    }).filter(item => item['Exams Completed'] > 0);
+    });
+  }, [examRecords, selectedAnalyticsStudentId]);
 
-    return list.sort((a, b) => b['Avg Score %'] - a['Avg Score %']);
-  }, [students, examRecords]);
+  // Selected student overview stats
+  const selectedStudentOverviewStats = useMemo(() => {
+    const records = examRecords.filter(rec => rec.studentId === selectedAnalyticsStudentId);
+    const passedFailed = records.filter(rec => rec.status === 'Passed' || rec.status === 'Failed');
+    
+    const totalTaken = records.length;
+    const passedCount = records.filter(rec => rec.status === 'Passed').length;
+    const failedCount = records.filter(rec => rec.status === 'Failed').length;
+    const absentCount = records.filter(rec => rec.status === 'Absent').length;
+    const awaitingCount = records.filter(rec => rec.status === 'Awaiting').length;
+
+    let totalPctSum = 0;
+    passedFailed.forEach(rec => {
+      const pct = rec.totalMarks > 0 ? (rec.marksObtained / rec.totalMarks) * 100 : 0;
+      totalPctSum += pct;
+    });
+
+    const averageScore = passedFailed.length > 0 ? Math.round(totalPctSum / passedFailed.length) : 0;
+    const passRate = passedFailed.length > 0 ? Math.round((passedCount / passedFailed.length) * 100) : 0;
+
+    return {
+      totalTaken,
+      passedCount,
+      failedCount,
+      absentCount,
+      awaitingCount,
+      averageScore,
+      passRate
+    };
+  }, [examRecords, selectedAnalyticsStudentId]);
 
   // Helper to find the next schedule date and time for a student
   const getNextScheduleData = (studentId: string) => {
@@ -551,7 +614,44 @@ export default function ExamsModule() {
 
       {/* TAB 1: SCHEDULE PLANNER */}
       {activeTab === 'planner' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="schedules-deck">
+        <div className="space-y-4 animate-fade-in">
+          {/* Status filters row */}
+          <div className="flex flex-wrap items-center gap-2 pb-1 bg-slate-50 p-2.5 rounded-2xl border border-slate-100 max-w-fit" id="planner-status-filters">
+            {(['Pending', 'Today', 'Complete', 'All'] as const).map((filter) => {
+              const count = examSchedules.filter(ex => {
+                const matchesStudent = selectedStudentFilter === 'All' || ex.studentId === selectedStudentFilter;
+                const matchesSubject = selectedSubjectFilter === 'All' || ex.subject === selectedSubjectFilter;
+                if (!matchesStudent || !matchesSubject) return false;
+                
+                const isCompleted = examRecords.some(er => er.examScheduleId === ex.id);
+                if (filter === 'Pending') return !isCompleted;
+                if (filter === 'Today') return ex.date === new Date().toISOString().split('T')[0];
+                if (filter === 'Complete') return isCompleted;
+                return true;
+              }).length;
+
+              return (
+                <button
+                  key={filter}
+                  onClick={() => setPlannerFilter(filter)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                    plannerFilter === filter
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  <span>{filter}</span>
+                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none ${
+                    plannerFilter === filter ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="schedules-deck">
           {filteredSchedules.length === 0 ? (
             <div className="col-span-full bg-white border border-slate-200 rounded-3xl p-10 text-center space-y-3" id="schedules-empty-slate">
               <CalendarDays className="mx-auto text-slate-350 text-slate-300 stroke-[1.2]" size={48} />
@@ -665,6 +765,7 @@ export default function ExamsModule() {
             })
           )}
         </div>
+      </div>
       )}
 
       {/* TAB 2: GRADEBOOK LOGS */}
@@ -781,139 +882,176 @@ export default function ExamsModule() {
       {/* TAB 3: PERFORMANCE ANALYTICS */}
       {activeTab === 'analytics' && (
         <div className="space-y-6" id="analytics-deck">
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* Chart 1: Subject performance Comparison */}
-            <div className="bg-white border border-slate-200 p-5 rounded-[28px] shadow-sm flex flex-col justify-between">
-              <div>
-                <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
-                  <BarChart3 size={15} className="text-indigo-600" />
-                  Subject-Wise Performance Distribution
-                </h4>
-                <p className="text-[10px] text-slate-400 mt-0.5 pb-2">Average percentage scores scored across different study courses.</p>
-              </div>
-
-              <div className="h-64 mt-2" id="subject-score-recharts-bar">
-                {subjectPerformanceData.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-xs font-medium">
-                    No graded exam record indices available yet to create subject charts.
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={subjectPerformanceData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                      <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '11px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} 
-                        formatter={(val) => [`${val}%`, 'Average Score']}
-                      />
-                      <Bar dataKey="Avg Performance %" radius={[6, 6, 0, 0]}>
-                        {subjectPerformanceData.map((entry, idx) => (
-                          <Cell key={`cell-${idx}`} fill={idx % 2 === 0 ? '#4f46e5' : '#06b6d4'} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
+          {students.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-3xl p-10 text-center space-y-3">
+              <User className="mx-auto text-slate-300" size={48} />
+              <h4 className="text-sm font-extrabold text-slate-800">No student directory records available</h4>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">Create student files under Student Directory to visualize custom grade analysis.</p>
             </div>
-
-            {/* Chart 2: Student rankings table leaderboards */}
-            <div className="bg-white border border-slate-200 p-5 rounded-[28px] shadow-sm flex flex-col justify-between">
-              <div>
-                <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
-                  <TrendingUp size={15} className="text-indigo-600" />
-                  Student Academic Leaderboards Ranking
-                </h4>
-                <p className="text-[10px] text-slate-400 mt-0.5 pb-2">Average achievement metrics evaluated across registered tutoring slots.</p>
-              </div>
-
-              <div className="h-64 mt-2 overflow-y-auto pr-1" id="ranking-list">
-                {studentRankPerformance.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-xs font-medium">
-                    Leaderboard lists are compiled dynamically when records are generated.
+          ) : (
+            <>
+              {/* Student Selector Row */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-[24px] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-2xl flex items-center justify-center font-extrabold shrink-0">
+                    <User size={18} />
                   </div>
-                ) : (
-                  <div className="space-y-3.5">
-                    {studentRankPerformance.map((item, idx) => {
-                      let medalColor = 'bg-slate-100 text-slate-600';
-                      if (idx === 0) medalColor = 'bg-amber-100 text-amber-700 font-extrabold';
-                      else if (idx === 1) medalColor = 'bg-slate-200 text-slate-800';
-                      else if (idx === 2) medalColor = 'bg-orange-150 bg-orange-100 text-orange-850';
-
-                      return (
-                        <div key={item.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                          <div className="flex items-center gap-3">
-                            <span className={`w-6 h-6 flex items-center justify-center rounded-lg text-xs font-semibold shrink-0 ${medalColor}`}>
-                              {idx + 1}
-                            </span>
-                            <div>
-                              <h5 className="text-xs font-extrabold text-slate-850 text-slate-800 leading-none">{item.name}</h5>
-                              <p className="text-[9px] text-slate-400 mt-1">{item['Exams Completed']} tests logged</p>
-                            </div>
-                          </div>
-                          
-                          <div className="text-right">
-                            <span className="text-xs font-black text-indigo-600">{item['Avg Score %']}%</span>
-                            <p className="text-[8px] uppercase tracking-wide font-black text-slate-400">Avg Efficiency</p>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div>
+                    <h4 className="text-sm font-black text-slate-800 leading-none">Individual Student Analytics Workspace</h4>
+                    <p className="text-[10px] text-slate-400 mt-1 flex-wrap">Select a student first to isolate and inspect their progress without comparison.</p>
                   </div>
-                )}
-              </div>
-            </div>
-
-          </div>
-
-          {/* Historical academic trajectory line map */}
-          <div className="bg-white border border-slate-200 p-5 rounded-[28px] shadow-sm">
-            <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
-              <Activity size={15} className="text-indigo-600" />
-              Academic Exam Score Progress Ledger Map
-            </h4>
-            <p className="text-[10px] text-slate-405 text-slate-400 mt-0.5 pb-2">Graded score percentage chronologies across the active tuition semester. (All composite test cycles)</p>
-            
-            <div className="h-72 mt-4" id="historical-score-recharts-line">
-              {examRecords.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-slate-450 text-slate-404 text-xs font-medium">
-                  Add more graded test logs to plot automatic scores progressions trajectory curves.
                 </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart 
-                    data={examRecords
-                      .filter(er => er.status === 'Passed' || er.status === 'Failed')
-                      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                      .map((rec, i) => {
-                        const student = students.find(s => s.id === rec.studentId);
-                        return {
-                          name: `T-${i+1}`,
-                          'Score %': rec.totalMarks > 0 ? Math.round((rec.marksObtained / rec.totalMarks) * 100) : 0,
-                          subject: rec.subject,
-                          student: student ? student.name : 'Unknown'
-                        };
-                      })
-                    }
-                    margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '11px' }} 
-                      formatter={(val, name, props) => [`${val}%`, `${props.payload.student} (${props.payload.subject})`]}
-                    />
-                    <Line type="monotone" dataKey="Score %" stroke="#4f46e5" strokeWidth={3} activeDot={{ r: 6 }} dot={{ strokeWidth: 2, r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
 
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-500 shrink-0">Student Profile:</span>
+                  <select
+                    value={selectedAnalyticsStudentId}
+                    onChange={(e) => setSelectedAnalyticsStudentId(e.target.value)}
+                    className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/15 focus:border-indigo-500 min-w-[200px] shadow-xs cursor-pointer"
+                  >
+                    {students.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.class})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Individual Student KPI stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                  <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400">Total Exams Taken</p>
+                  <p className="text-xl font-black text-slate-900 mt-1">{selectedStudentOverviewStats.totalTaken}</p>
+                  <p className="text-[8.5px] text-slate-400 mt-0.5">Includes absent/awaiting slots</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                  <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400">Pass Efficiency Rate</p>
+                  <p className="text-xl font-black text-emerald-600 mt-1">{selectedStudentOverviewStats.passRate}%</p>
+                  <p className="text-[8.5px] text-emerald-500/80 mt-0.5">{selectedStudentOverviewStats.passedCount} tests passed</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                  <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400">Average Score Ratio</p>
+                  <p className="text-xl font-black text-indigo-600 mt-1">{selectedStudentOverviewStats.averageScore}%</p>
+                  <p className="text-[8.5px] text-slate-400 mt-0.5">Based on graded scores</p>
+                </div>
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
+                  <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400">Class Standing Logs</p>
+                  <div className="flex items-center gap-1.5 mt-1 font-bold text-xs select-none">
+                    <span className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded" title="Passed">{selectedStudentOverviewStats.passedCount}P</span>
+                    <span className="text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded" title="Failed">{selectedStudentOverviewStats.failedCount}F</span>
+                    <span className="text-slate-500 bg-slate-105 bg-slate-100 px-1.5 py-0.5 rounded" title="Absent">{selectedStudentOverviewStats.absentCount}Ab</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Chart 1: Student Subject performance */}
+                <div className="bg-white border border-slate-200 p-5 rounded-[28px] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+                      <BarChart3 size={15} className="text-indigo-600" />
+                      Subject-Wise Efficiency Breakdown
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5 pb-2">Average percentage scores across different tutoring subjects for this student.</p>
+                  </div>
+
+                  <div className="h-64 mt-2" id="student-subject-score-bar">
+                    {selectedStudentSubjectPerformance.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-xs font-medium">
+                        No graded test records logged yet for this specific student profile.
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={selectedStudentSubjectPerformance} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '11px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} 
+                            formatter={(val) => [`${val}%`, 'Avg Score']}
+                          />
+                          <Bar dataKey="Avg Performance %" radius={[6, 6, 0, 0]}>
+                            {selectedStudentSubjectPerformance.map((entry, idx) => (
+                              <Cell key={`cell-${idx}`} fill={idx % 2 === 0 ? '#4f46e5' : '#06b6d4'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                {/* Individual completed exams log list */}
+                <div className="bg-white border border-slate-200 p-5 rounded-[28px] shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+                      <BookOpen size={15} className="text-indigo-600" />
+                      Completed Exam Syllabus Records
+                    </h4>
+                    <p className="text-[10px] text-slate-400 mt-0.5 pb-2">List of graded assessment achievements and exam scores.</p>
+                  </div>
+
+                  <div className="h-64 mt-2 overflow-y-auto pr-1 space-y-2.5" id="student-exam-history-list">
+                    {selectedStudentProgressOverTime.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-slate-400 text-xs font-medium">
+                        No completing exam sessions logged yet for this target student.
+                      </div>
+                    ) : (
+                      selectedStudentProgressOverTime.slice().reverse().map((rec, idx) => {
+                        return (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div>
+                              <h5 className="text-xs font-extrabold text-slate-800 leading-none">{rec.displayLabel}</h5>
+                              <p className="text-[9px] text-slate-400 mt-1">{rec.date} • Score: {rec.marksLabel}</p>
+                            </div>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                              rec['Score %'] >= 50 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                            }`}>
+                              {rec['Score %']}%
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Historical academic trajectory line map */}
+              <div className="bg-white border border-slate-200 p-5 rounded-[28px] shadow-sm">
+                <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+                  <Activity size={15} className="text-indigo-600" />
+                  Isolated Academic Score Trajectory Curve
+                </h4>
+                <p className="text-[10px] text-slate-405 text-slate-400 mt-0.5 pb-2">Chronological grade progression trajectory across tests completed by this student.</p>
+                
+                <div className="h-72 mt-4" id="historical-score-recharts-line">
+                  {selectedStudentProgressOverTime.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-slate-404 text-xs font-medium">
+                      Logs of completed test sessions will form structural progress markers here.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart 
+                        data={selectedStudentProgressOverTime}
+                        margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '11px' }} 
+                          formatter={(val, name, props) => [`${val}%`, `${props.payload.displayLabel}`]}
+                        />
+                        <Line type="monotone" dataKey="Score %" stroke="#4f46e5" strokeWidth={3} activeDot={{ r: 6 }} dot={{ strokeWidth: 2, r: 4 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 

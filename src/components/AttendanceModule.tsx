@@ -50,6 +50,8 @@ export default function AttendanceModule() {
   const [selectedStudentFilter, setSelectedStudentFilter] = useState('All');
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('All');
   const [dateSearchTerm, setDateSearchTerm] = useState('');
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndingDateFilter] = useState('');
 
   // Main view state: default to 'calendar' as requested
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
@@ -226,14 +228,19 @@ export default function AttendanceModule() {
         const matchesStudent = selectedStudentFilter === 'All' ? true : at.studentId === selectedStudentFilter;
         const matchesMonth = selectedMonthFilter === 'All' ? true : at.date.startsWith(selectedMonthFilter);
         const matchesSearch = dateSearchTerm ? at.date.includes(dateSearchTerm) || at.remarks.toLowerCase().includes(dateSearchTerm.toLowerCase()) : true;
-        return matchesStudent && matchesMonth && matchesSearch;
+        
+        // Date range filters
+        const matchesStartDate = startDateFilter ? at.date >= startDateFilter : true;
+        const matchesEndDate = endDateFilter ? at.date <= endDateFilter : true;
+
+        return matchesStudent && matchesMonth && matchesSearch && matchesStartDate && matchesEndDate;
       })
       .sort((a, b) => {
         const dateCompare = b.date.localeCompare(a.date);
         if (dateCompare !== 0) return dateCompare;
         return b.entryAt.localeCompare(a.entryAt);
       });
-  }, [attendance, selectedStudentFilter, selectedMonthFilter, dateSearchTerm]);
+  }, [attendance, selectedStudentFilter, selectedMonthFilter, dateSearchTerm, startDateFilter, endDateFilter]);
 
   // Group filteredAttendance by date
   const groupedAttendanceByDate = useMemo(() => {
@@ -374,7 +381,7 @@ export default function AttendanceModule() {
       {/* Aggregate metrics box is completely removed as requested */}
 
       {/* Filtering tools */}
-      <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
+      <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {/* Quick client select */}
           <div className="flex items-center gap-2">
@@ -419,6 +426,43 @@ export default function AttendanceModule() {
               onChange={(e) => setDateSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold placeholder:text-slate-400 focus:outline-none"
             />
+          </div>
+        </div>
+
+        {/* Date Range Sub-Filter Row */}
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-slate-500">Date Range:</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <input 
+                type="date" 
+                value={startDateFilter}
+                onChange={(e) => setStartDateFilter(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg p-1.5 text-[11px] font-bold text-slate-600 focus:outline-none"
+              />
+              <span className="text-slate-400">to</span>
+              <input 
+                type="date" 
+                value={endDateFilter}
+                onChange={(e) => setEndingDateFilter(e.target.value)}
+                className="bg-white border border-slate-200 rounded-lg p-1.5 text-[11px] font-bold text-slate-600 focus:outline-none"
+              />
+            </div>
+            {(startDateFilter || endDateFilter) && (
+              <button
+                onClick={() => {
+                  setStartDateFilter('');
+                  setEndingDateFilter('');
+                }}
+                className="px-2 py-1 text-[10px] bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold rounded-lg transition cursor-pointer"
+              >
+                Clear Range
+              </button>
+            )}
+          </div>
+          
+          <div className="text-[11px] text-slate-400 font-medium">
+            Filtered <strong className="text-indigo-600 font-extrabold">{filteredAttendance.length}</strong> of {attendance.length} entries
           </div>
         </div>
       </div>
