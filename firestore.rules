@@ -38,13 +38,16 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              (!('class' in data) || (data.class is string && data.class.size() <= 100)) &&
              (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('subjects' in data) || data.subjects is list) &&
              (!('paymentCycle' in data) || (data.paymentCycle is string && data.paymentCycle.size() <= 50)) &&
              (!('monthlySalary' in data) || (data.monthlySalary is int || data.monthlySalary is float)) &&
              (!('startDate' in data) || (data.startDate is string && data.startDate.size() <= 30)) &&
              (!('status' in data) || (data.status is string && (data.status == 'Active' || data.status == 'Inactive'))) &&
              (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
              (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
-             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced'))) &&
+             (!('previousState' in data) || data.previousState is string) &&
+             (!('synchronizedAt' in data) || data.synchronizedAt is string);
     }
 
     function isValidSchedule(data) {
@@ -56,9 +59,14 @@ service cloud.firestore {
              (!('location' in data) || (data.location is string && data.location.size() <= 200)) &&
              (!('subject' in data) || (data.subject is string && data.subject.size() <= 100)) &&
              (!('remarks' in data) || (data.remarks is string && data.remarks.size() <= 1000)) &&
+             (!('sessionStatus' in data) || (data.sessionStatus is string && data.sessionStatus.size() <= 20)) &&
+             (!('sessionDate' in data) || (data.sessionDate is string && data.sessionDate.size() <= 30)) &&
+             (!('sessionStartedAt' in data) || (data.sessionStartedAt is string && data.sessionStartedAt.size() <= 50)) &&
              (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
              (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
-             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced'))) &&
+             (!('previousState' in data) || data.previousState is string) &&
+             (!('synchronizedAt' in data) || data.synchronizedAt is string);
     }
 
     function isValidAttendance(data) {
@@ -71,7 +79,9 @@ service cloud.firestore {
              (!('remarks' in data) || (data.remarks is string && data.remarks.size() <= 1000)) &&
              (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
              (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
-             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced'))) &&
+             (!('previousState' in data) || data.previousState is string) &&
+             (!('synchronizedAt' in data) || data.synchronizedAt is string);
     }
 
     function isValidPayment(data) {
@@ -87,7 +97,9 @@ service cloud.firestore {
              (!('status' in data) || (data.status is string && (data.status == 'Paid' || data.status == 'Partial' || data.status == 'Due'))) &&
              (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
              (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
-             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced'))) &&
+             (!('previousState' in data) || data.previousState is string) &&
+             (!('synchronizedAt' in data) || data.synchronizedAt is string);
     }
 
     function isValidExamSchedule(data) {
@@ -102,7 +114,9 @@ service cloud.firestore {
              (!('reminderSent' in data) || (data.reminderSent is bool)) &&
              (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
              (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
-             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced'))) &&
+             (!('previousState' in data) || data.previousState is string) &&
+             (!('synchronizedAt' in data) || data.synchronizedAt is string);
     }
 
     function isValidExamRecord(data) {
@@ -118,12 +132,18 @@ service cloud.firestore {
              (!('status' in data) || (data.status is string && (data.status == 'Passed' || data.status == 'Failed' || data.status == 'Awaiting' || data.status == 'Absent'))) &&
              (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 50)) &&
              (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 50)) &&
-             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced')));
+             (!('syncStatus' in data) || (data.syncStatus is string && (data.syncStatus == 'pending' || data.syncStatus == 'synced'))) &&
+             (!('previousState' in data) || data.previousState is string) &&
+             (!('synchronizedAt' in data) || data.synchronizedAt is string);
     }
 
     // Secure user paths
     match /tutors/{userId} {
       allow read, write: if isAllowedUser(userId);
+
+      match /system_test/{docId} {
+        allow read, write: if isAllowedUser(userId);
+      }
 
       match /students/{studentId} {
         allow read: if isAllowedUser(userId);

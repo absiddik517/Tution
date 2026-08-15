@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useStore } from '../store';
 import { Attendance } from '../types';
+import { useTheme } from '../theme';
 import { 
   Plus, Calendar, Clock, User, Filter, Search, Trash2, Edit3, X, ClipboardCheck, CheckSquare, ChevronLeft, ChevronRight, List
 } from 'lucide-react';
@@ -39,6 +40,7 @@ const getStudentBadgeStyle = (name: string) => {
 };
 
 export default function AttendanceModule() {
+  const { theme, darkMode } = useTheme();
   const { 
     attendance, students, addAttendance, updateAttendance, deleteAttendance 
   } = useStore();
@@ -341,18 +343,18 @@ export default function AttendanceModule() {
       {/* Top Banner section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-800 tracking-tight font-display">Attendance Log Register</h2>
-          <p className="text-xs text-slate-400">View and track completed client classes in an interactive workspace</p>
+          <h2 className={`text-xl font-extrabold ${theme.textTitle} tracking-tight font-display`}>Attendance Log Register</h2>
+          <p className={`text-xs ${theme.textMuted}`}>View and track completed client classes in an interactive workspace</p>
         </div>
 
         {/* Dynamic Mode Switcher */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl shrink-0 shadow-inner">
+        <div className={`flex ${theme.bgCardElevated} p-1.5 rounded-2xl shrink-0 border ${theme.borderMain} shadow-inner`}>
           <button
             onClick={() => setViewMode('calendar')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
               viewMode === 'calendar' 
-                ? 'bg-white text-indigo-700 shadow-sm' 
-                : 'text-slate-500 hover:text-slate-850'
+                ? `${theme.bgCard} ${theme.textAccent} shadow-sm border ${theme.borderMain}` 
+                : `${theme.textMuted} hover:${theme.textTitle}`
             }`}
           >
             <Calendar size={14} />
@@ -362,8 +364,8 @@ export default function AttendanceModule() {
             onClick={() => setViewMode('list')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
               viewMode === 'list' 
-                ? 'bg-white text-indigo-700 shadow-sm' 
-                : 'text-slate-500 hover:text-slate-850'
+                ? `${theme.bgCard} ${theme.textAccent} shadow-sm border ${theme.borderMain}` 
+                : `${theme.textMuted} hover:${theme.textTitle}`
             }`}
           >
             <List size={14} />
@@ -373,7 +375,7 @@ export default function AttendanceModule() {
       </div>
 
       {activeStudents.length === 0 && (
-        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-800 font-medium">
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl text-xs text-amber-800 dark:text-amber-400 font-medium">
           ⚠️ Notice: Register active students first under Student Directory to sign daily attendance records here.
         </div>
       )}
@@ -381,7 +383,7 @@ export default function AttendanceModule() {
       {/* Aggregate metrics box is completely removed as requested */}
 
       {/* Filtering tools */}
-      <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm space-y-3">
+      <div className={`p-4 ${theme.bgCard} border ${theme.borderMain} rounded-2xl shadow-sm space-y-3`}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {/* Quick client select */}
           <div className="flex items-center gap-2">
@@ -389,11 +391,11 @@ export default function AttendanceModule() {
             <select
               value={selectedStudentFilter}
               onChange={(e) => setSelectedStudentFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-xs font-bold text-slate-600 focus:outline-none"
+              className={`w-full ${theme.bgInput} border ${theme.borderMain} rounded-xl p-2.5 text-xs font-bold ${theme.textMain} focus:outline-none`}
             >
-              <option value="All">All Students</option>
+              <option value="All" className={`${theme.bgCard} ${theme.textMain}`}>All Students</option>
               {students.map(s => (
-                <option key={s.id} value={s.id}>{s.name} ({s.class})</option>
+                <option key={s.id} value={s.id} className={`${theme.bgCard} ${theme.textMain}`}>{s.name} ({s.class})</option>
               ))}
             </select>
           </div>
@@ -404,14 +406,14 @@ export default function AttendanceModule() {
             <select
               value={selectedMonthFilter}
               onChange={(e) => setSelectedMonthFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-xs font-bold text-slate-600 focus:outline-none"
+              className={`w-full ${theme.bgInput} border ${theme.borderMain} rounded-xl p-2.5 text-xs font-bold ${theme.textMain} focus:outline-none`}
             >
-              <option value="All">All Months</option>
+              <option value="All" className={`${theme.bgCard} ${theme.textMain}`}>All Months</option>
               {distinctMonths.map(m => {
                 const [yearCode, monthNum] = m.split('-');
                 const monthObj = new Date(Number(yearCode), Number(monthNum) - 1, 1);
                 const desc = monthObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-                return <option key={m} value={m}>{desc}</option>;
+                return <option key={m} value={m} className={`${theme.bgCard} ${theme.textMain}`}>{desc}</option>;
               })}
             </select>
           </div>
@@ -424,28 +426,28 @@ export default function AttendanceModule() {
               placeholder="Filter by date (YYYY-MM-DD) or notes..."
               value={dateSearchTerm}
               onChange={(e) => setDateSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold placeholder:text-slate-400 focus:outline-none"
+              className={`w-full pl-9 pr-4 py-2.5 ${theme.bgInput} border ${theme.borderMain} rounded-xl text-xs font-bold ${theme.textMain} placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none`}
             />
           </div>
         </div>
 
         {/* Date Range Sub-Filter Row */}
-        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className={`${theme.bgCardElevated} p-3 rounded-xl border ${theme.borderMain} flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs`}>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-bold text-slate-500">Date Range:</span>
+            <span className={`font-bold ${theme.textMuted}`}>Date Range:</span>
             <div className="flex items-center gap-1.5 flex-wrap">
               <input 
                 type="date" 
                 value={startDateFilter}
                 onChange={(e) => setStartDateFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-lg p-1.5 text-[11px] font-bold text-slate-600 focus:outline-none"
+                className={`border ${theme.borderMain} ${theme.bgInput} rounded-lg p-1.5 text-[11px] font-bold ${theme.textMain} focus:outline-none`}
               />
-              <span className="text-slate-400">to</span>
+              <span className={theme.textMuted}>to</span>
               <input 
                 type="date" 
                 value={endDateFilter}
                 onChange={(e) => setEndingDateFilter(e.target.value)}
-                className="bg-white border border-slate-200 rounded-lg p-1.5 text-[11px] font-bold text-slate-600 focus:outline-none"
+                className={`border ${theme.borderMain} ${theme.bgInput} rounded-lg p-1.5 text-[11px] font-bold ${theme.textMain} focus:outline-none`}
               />
             </div>
             {(startDateFilter || endDateFilter) && (
@@ -454,23 +456,23 @@ export default function AttendanceModule() {
                   setStartDateFilter('');
                   setEndingDateFilter('');
                 }}
-                className="px-2 py-1 text-[10px] bg-slate-200 hover:bg-slate-300 text-slate-700 font-extrabold rounded-lg transition cursor-pointer"
+                className={`px-2 py-1 text-[10px] ${theme.bgInput} hover:bg-slate-200 dark:hover:bg-slate-800 border ${theme.borderMain} ${theme.textMain} font-extrabold rounded-lg transition cursor-pointer`}
               >
                 Clear Range
               </button>
             )}
           </div>
           
-          <div className="text-[11px] text-slate-400 font-medium">
-            Filtered <strong className="text-indigo-600 font-extrabold">{filteredAttendance.length}</strong> of {attendance.length} entries
+          <div className={`text-[11px] ${theme.textMuted} font-medium`}>
+            Filtered <strong className="text-indigo-600 dark:text-indigo-400 font-extrabold">{filteredAttendance.length}</strong> of {attendance.length} entries
           </div>
         </div>
       </div>
 
       {/* RENDER IN PORTRAIT CALENDAR CONTAINER WITH DYNAMIC DAY/WEEK/MONTH INTERACTION */}
       {viewMode === 'calendar' && (
-        <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className={`${theme.bgCard} border ${theme.borderMain} rounded-3xl p-6 shadow-sm space-y-4`}>
+          <div className={`flex items-center justify-between border-b ${theme.borderMain} pb-4`}>
             
             {/* Visual View Selection Sub-indicator Bar matching the sample images */}
             <div className="flex items-center gap-5">
@@ -478,8 +480,8 @@ export default function AttendanceModule() {
                 onClick={() => setCalendarSubMode('day')}
                 className={`text-[13px] font-bold pb-2.5 transition relative top-[13px] z-10 ${
                   calendarSubMode === 'day' 
-                    ? 'text-blue-600 border-b-2 border-blue-600 font-extrabold' 
-                    : 'text-slate-400 hover:text-slate-750'
+                    ? `${theme.textAccent} border-b-2 border-indigo-600 dark:border-indigo-400 font-extrabold` 
+                    : `${theme.textMuted} hover:${theme.textTitle}`
                 }`}
               >
                 Day
@@ -488,8 +490,8 @@ export default function AttendanceModule() {
                 onClick={() => setCalendarSubMode('week')}
                 className={`text-[13px] font-bold pb-2.5 transition relative top-[13px] z-10 ${
                   calendarSubMode === 'week' 
-                    ? 'text-blue-600 border-b-2 border-blue-600 font-extrabold' 
-                    : 'text-slate-400 hover:text-slate-750'
+                    ? `${theme.textAccent} border-b-2 border-indigo-600 dark:border-indigo-400 font-extrabold` 
+                    : `${theme.textMuted} hover:${theme.textTitle}`
                 }`}
               >
                 Week
@@ -498,8 +500,8 @@ export default function AttendanceModule() {
                 onClick={() => setCalendarSubMode('month')}
                 className={`text-[13px] font-bold pb-2.5 transition relative top-[13px] z-10 ${
                   calendarSubMode === 'month' 
-                    ? 'text-blue-600 border-b-2 border-blue-600 font-extrabold' 
-                    : 'text-slate-400 hover:text-slate-750'
+                    ? `${theme.textAccent} border-b-2 border-indigo-600 dark:border-indigo-400 font-extrabold` 
+                    : `${theme.textMuted} hover:${theme.textTitle}`
                 }`}
               >
                 Month
@@ -511,19 +513,19 @@ export default function AttendanceModule() {
           <div className="flex items-center justify-between py-2">
             <button 
               onClick={handlePrev}
-              className="p-1.5 rounded-xl border border-slate-205 hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition"
+              className={`p-1.5 rounded-xl border ${theme.borderMain} hover:${theme.bgCardElevated} ${theme.textMuted} hover:${theme.textTitle} transition`}
               title="Previous"
             >
               <ChevronLeft size={16} />
             </button>
-            <h3 className="font-extrabold text-slate-800 text-sm md:text-base tracking-tight font-display">
+            <h3 className={`font-extrabold ${theme.textTitle} text-sm md:text-base tracking-tight font-display`}>
               {calendarSubMode === 'month' && currentDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
               {calendarSubMode === 'week' && weekLabel}
               {calendarSubMode === 'day' && dayLabel}
             </h3>
             <button 
               onClick={handleNext}
-              className="p-1.5 rounded-xl border border-slate-205 hover:bg-slate-50 text-slate-500 hover:text-slate-800 transition"
+              className={`p-1.5 rounded-xl border ${theme.borderMain} hover:${theme.bgCardElevated} ${theme.textMuted} hover:${theme.textTitle} transition`}
               title="Next"
             >
               <ChevronRight size={16} />
@@ -534,16 +536,16 @@ export default function AttendanceModule() {
           {calendarSubMode === 'month' && (
             <>
               {/* Weekday indicators */}
-              <div className="grid grid-cols-7 text-center border-t border-slate-105 pt-3">
+              <div className={`grid grid-cols-7 text-center border-t ${theme.borderMuted} pt-3`}>
                 {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, dIdx) => (
-                  <span key={dIdx} className="text-xs font-bold text-slate-400 py-1">
+                  <span key={dIdx} className={`text-xs font-bold ${theme.textMuted} py-1`}>
                     {day}
                   </span>
                 ))}
               </div>
 
               {/* Day Cells Matrix */}
-              <div className="grid grid-cols-7 border-t border-l border-slate-100 rounded-b-xl overflow-hidden shadow-xs">
+              <div className={`grid grid-cols-7 border-t border-l ${theme.borderMain} rounded-b-xl overflow-hidden shadow-xs`}>
                 {calendarCells.map((cell, idx) => {
                   const cellDate = cell.dateStr;
                   
@@ -558,8 +560,8 @@ export default function AttendanceModule() {
                         setFormDate(cellDate);
                         handleOpenAdd();
                       }}
-                      className={`min-h-[110px] sm:min-h-[130px] p-1.5 border-r border-b border-slate-100 flex flex-col justify-between transition relative group cursor-pointer ${
-                        cell.isCurrent ? 'bg-white hover:bg-slate-50/50' : 'bg-slate-50/20 text-slate-350'
+                      className={`min-h-[110px] sm:min-h-[130px] p-1.5 border-r border-b ${theme.borderMain} flex flex-col justify-between transition relative group cursor-pointer ${
+                        cell.isCurrent ? `${theme.bgCard} hover:${theme.bgCardElevated}` : `${theme.bgCardElevated}/50 text-slate-350/50 dark:text-slate-700`
                       }`}
                       title="Click empty grid space to log a new attendance record"
                     >
@@ -571,7 +573,7 @@ export default function AttendanceModule() {
                             {cell.dayNum}
                           </span>
                         ) : (
-                          <span className={`text-[10px] font-bold ${cell.isCurrent ? 'text-slate-500' : 'text-slate-300'}`}>
+                          <span className={`text-[10px] font-bold ${cell.isCurrent ? theme.textMain : theme.textMuted}`}>
                             {cell.dayNum < 10 ? `0${cell.dayNum}` : cell.dayNum}
                           </span>
                         )}
@@ -609,18 +611,18 @@ export default function AttendanceModule() {
           {/* DYNAMIC SUBSECTION: WEEK SUB-MODE */}
           {calendarSubMode === 'week' && (
             <div className="overflow-x-auto">
-              <div className="min-w-[700px] border border-slate-150 rounded-2xl overflow-hidden bg-slate-55/40">
+              <div className={`min-w-[700px] border ${theme.borderMain} rounded-2xl overflow-hidden ${theme.bgCardElevated}`}>
                 {/* Week View Date and Column header row */}
-                <div className="grid grid-cols-[64px_repeat(7,1fr)] bg-slate-50 border-b border-slate-150 text-center py-3">
+                <div className={`grid grid-cols-[64px_repeat(7,1fr)] ${theme.bgCardElevated} border-b ${theme.borderMain} text-center py-3`}>
                   <div /> {/* Top left spacer cell */}
                   {weekDays.map((wd, index) => {
                     const isToday = wd.toISOString().substring(0, 10) === new Date().toISOString().substring(0, 10);
                     return (
                       <div key={index} className="flex flex-col items-center">
-                        <span className={`text-[14px] font-extrabold leading-none ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center font-black shadow-xs' : 'text-slate-800'}`}>
+                        <span className={`text-[14px] font-extrabold leading-none ${isToday ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center font-black shadow-xs' : theme.textTitle}`}>
                           {wd.getDate()}
                         </span>
-                        <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
+                        <span className={`text-[10px] font-bold ${theme.textMuted} mt-1 uppercase tracking-wider`}>
                           {wd.toLocaleString('en-US', { weekday: 'narrow' })}
                         </span>
                       </div>
@@ -636,7 +638,7 @@ export default function AttendanceModule() {
                     {HOUR_SLOTS.map((slot, index) => (
                       <div 
                         key={index} 
-                        className="absolute left-0 right-0 text-right pr-3 text-[10px] font-bold text-slate-400 flex items-center justify-end select-none"
+                        className={`absolute left-0 right-0 text-right pr-3 text-[10px] font-bold ${theme.textMuted} flex items-center justify-end select-none`}
                         style={{ top: `${index * 52}px`, height: '52px' }}
                       >
                         {slot.label}
@@ -649,7 +651,7 @@ export default function AttendanceModule() {
                     {HOUR_SLOTS.map((_, index) => (
                       <div 
                         key={index} 
-                        className="absolute left-0 right-0 border-b border-slate-100/80"
+                        className={`absolute left-0 right-0 border-b ${theme.borderMuted}/50`}
                         style={{ top: `${index * 52}px`, height: '52px' }}
                       />
                     ))}
@@ -663,7 +665,7 @@ export default function AttendanceModule() {
                     return (
                       <div 
                         key={dayIdx} 
-                        className="relative border-l border-slate-100 h-full cursor-pointer hover:bg-slate-50/20"
+                        className={`relative border-l ${theme.borderMain} h-full cursor-pointer hover:${theme.bgCardElevated}/40`}
                         onClick={() => {
                           setFormDate(dateStr);
                           setFormEntryAt('15:00');
@@ -724,15 +726,15 @@ export default function AttendanceModule() {
 
           {/* DYNAMIC SUBSECTION: DAY SUB-MODE */}
           {calendarSubMode === 'day' && (
-            <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white">
+            <div className={`border ${theme.borderMain} rounded-2xl overflow-hidden ${theme.bgCard}`}>
               {/* Day View Header Day Initial */}
-              <div className="grid grid-cols-[80px_1fr] bg-slate-50 border-b border-slate-150 py-3 text-center">
+              <div className={`grid grid-cols-[80px_1fr] ${theme.bgCardElevated} border-b ${theme.borderMain} py-3 text-center`}>
                 <div />
                 <div className="flex flex-col items-center">
-                  <span className="text-xs font-bold text-slate-400 tracking-wider">
+                  <span className={`text-xs font-bold ${theme.textMuted} tracking-wider`}>
                     {currentDate.toLocaleString('en-US', { weekday: 'narrow' })}
                   </span>
-                  <span className="text-sm font-extrabold text-slate-800 leading-none mt-1">
+                  <span className={`text-sm font-extrabold ${theme.textTitle} leading-none mt-1`}>
                     {currentDate.getDate()}
                   </span>
                 </div>
@@ -740,12 +742,12 @@ export default function AttendanceModule() {
 
               {/* Scrollable Hourly schedule card list */}
               <div className="overflow-x-auto">
-                <div className="min-w-[400px] relative divide-y divide-slate-100" style={{ height: `${HOUR_SLOTS.length * 52}px` }}>
+                <div className={`min-w-[400px] relative divide-y ${theme.borderMuted}`} style={{ height: `${HOUR_SLOTS.length * 52}px` }}>
                   {HOUR_SLOTS.map((slot, index) => {
                     return (
                       <div 
                         key={index} 
-                        className="absolute left-0 right-0 border-b border-slate-100 flex items-center h-[52px]" 
+                        className={`absolute left-0 right-0 border-b ${theme.borderMain} flex items-center h-[52px]`} 
                         style={{ top: `${index * 52}px` }}
                         onClick={() => {
                           const localDateStr = currentDate.toISOString().substring(0, 10);
@@ -758,10 +760,10 @@ export default function AttendanceModule() {
                         }}
                       >
                         {/* Hour Label */}
-                        <div className="w-[80px] text-right pr-4 text-[10px] font-bold text-slate-400 select-none">
+                        <div className={`w-[80px] text-right pr-4 text-[10px] font-bold ${theme.textMuted} select-none`}>
                           {slot.label}
                         </div>
-                        <div className="flex-1 h-full border-l border-slate-100 relative" />
+                        <div className={`flex-1 h-full border-l ${theme.borderMain} relative`} />
                       </div>
                     );
                   })}
@@ -826,16 +828,16 @@ export default function AttendanceModule() {
 
       {/* RENDER IN GROUPED SEQUENTIAL TABLE VIEW */}
       {viewMode === 'list' && (
-        <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <h3 className="text-sm font-bold text-slate-800">Attendance Database Entries ({filteredAttendance.length})</h3>
-            <span className="text-xs text-slate-400 font-medium">Grouped by date</span>
+        <div className={`${theme.bgCard} border ${theme.borderMain} rounded-3xl p-6 shadow-sm space-y-6`}>
+          <div className={`flex items-center justify-between border-b ${theme.borderMain} pb-4`}>
+            <h3 className={`text-sm font-bold ${theme.textTitle}`}>Attendance Database Entries ({filteredAttendance.length})</h3>
+            <span className={`text-xs ${theme.textMuted} font-medium`}>Grouped by date</span>
           </div>
 
           {filteredAttendance.length === 0 ? (
-            <div className="text-center py-16 text-slate-400 space-y-2">
-              <ClipboardCheck className="mx-auto text-slate-300 stroke-[1.2]" size={42} />
-              <p className="text-sm font-semibold">No Attendance Records</p>
+            <div className={`text-center py-16 ${theme.textMuted} space-y-2`}>
+              <ClipboardCheck className={`mx-auto ${theme.textMuted} opacity-60 stroke-[1.2]`} size={42} />
+              <p className={`text-sm font-semibold ${theme.textTitle}`}>No Attendance Records</p>
               <p className="text-xs max-w-xs mx-auto">
                 No daily session marks align with the query. Press the "+" action floating button to add new records.
               </p>
@@ -844,45 +846,45 @@ export default function AttendanceModule() {
             <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
               {(Object.entries(groupedAttendanceByDate) as [string, Attendance[]][]).map(([dateStr, logs]) => {
                 return (
-                  <div key={dateStr} className="border border-slate-100 rounded-2xl overflow-hidden bg-white shadow-xs">
+                  <div key={dateStr} className={`border ${theme.borderMain} rounded-2xl overflow-hidden ${theme.bgCard} shadow-xs`}>
                     {/* Date Group Header */}
-                    <div className="bg-slate-50 border-b border-slate-100 px-4 py-3 flex items-center justify-between">
+                    <div className={`${theme.bgCardElevated} border-b ${theme.borderMain} px-4 py-3 flex items-center justify-between`}>
                       <div className="flex items-center gap-2">
-                        <Calendar size={14} className="text-indigo-600" />
-                        <span className="text-xs font-bold text-slate-700">{formatDate(dateStr)}</span>
+                        <Calendar size={14} className={theme.textAccent} />
+                        <span className={`text-xs font-bold ${theme.textTitle}`}>{formatDate(dateStr)}</span>
                       </div>
-                      <span className="text-[10px] bg-indigo-50 text-indigo-700 font-extrabold px-2.5 py-0.5 rounded-full">
+                      <span className={`text-[10px] ${theme.badgeAccent} font-extrabold px-2.5 py-0.5 rounded-full`}>
                         {logs.length} {logs.length === 1 ? 'entry' : 'entries'}
                       </span>
                     </div>
 
                     {/* Table presentation for this date */}
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[550px] border-collapse text-left text-xs text-slate-600">
+                      <table className={`w-full min-w-[550px] border-collapse text-left text-xs ${theme.textMain}`}>
                         <thead>
-                          <tr className="bg-slate-50/30 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          <tr className={`${theme.bgCardElevated}/50 border-b ${theme.borderMain} text-[10px] font-bold ${theme.textMuted} uppercase tracking-wider`}>
                             <th className="px-4 py-2.5">Student</th>
                             <th className="px-4 py-2.5">Duration</th>
                             <th className="px-4 py-2.5">Note</th>
                             <th className="px-4 py-2.5 text-right">Actions</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody className={`divide-y ${theme.borderMuted}`}>
                           {logs.map((log) => {
                             const student = students.find(s => s.id === log.studentId);
                             const studentName = student?.name || 'Unknown client';
                             return (
-                              <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
+                              <tr key={log.id} className={`hover:${theme.bgCardElevated}/40 transition-colors`}>
                                 {/* Student Column */}
                                 <td className="px-4 py-3">
                                   <div className="flex items-center gap-2.5">
-                                    <div className="w-7 h-7 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 select-none">
+                                    <div className={`w-7 h-7 ${theme.bgCardElevated} border ${theme.borderMain} ${theme.textAccent} rounded-lg flex items-center justify-center font-bold text-xs shrink-0 select-none`}>
                                       {studentName.charAt(0)}
                                     </div>
                                     <div>
-                                      <span className="font-extrabold text-[13px] text-slate-800 block leading-tight">{studentName}</span>
+                                      <span className={`font-extrabold text-[13px] ${theme.textTitle} block leading-tight`}>{studentName}</span>
                                       {student?.class && (
-                                        <span className="text-[9px] font-bold text-slate-405 leading-none">
+                                        <span className={`text-[9px] font-bold ${theme.textMuted} leading-none`}>
                                           {student.class}
                                         </span>
                                       )}
@@ -893,11 +895,11 @@ export default function AttendanceModule() {
                                 {/* Duration Column */}
                                 <td className="px-4 py-3">
                                   <div className="space-y-0.5">
-                                    <div className="flex items-center gap-1.5 text-slate-705 font-bold">
-                                      <Clock size={11} className="text-slate-400" />
+                                    <div className={`flex items-center gap-1.5 ${theme.textMain} font-bold`}>
+                                      <Clock size={11} className={theme.textMuted} />
                                       <span>{formatTime(log.entryAt)} - {formatTime(log.exitAt)}</span>
                                     </div>
-                                    <div className="text-[10px] font-extrabold text-indigo-650">
+                                    <div className={`text-[10px] font-extrabold ${theme.textAccent}`}>
                                       {log.duration} hrs worked
                                     </div>
                                   </div>
@@ -906,11 +908,11 @@ export default function AttendanceModule() {
                                 {/* Note Column */}
                                 <td className="px-4 py-3 max-w-[200px] md:max-w-[300px]">
                                   {log.remarks ? (
-                                    <span className="text-[11px] text-slate-500 font-sans italic line-clamp-1 block" title={log.remarks}>
+                                    <span className={`text-[11px] ${theme.textMuted} font-sans italic line-clamp-1 block`} title={log.remarks}>
                                       {log.remarks}
                                     </span>
                                   ) : (
-                                    <span className="text-slate-300 italic">-</span>
+                                    <span className={`${theme.textMuted} italic`}>-</span>
                                   )}
                                 </td>
 
@@ -919,7 +921,7 @@ export default function AttendanceModule() {
                                   <div className="flex items-center justify-end gap-3.5">
                                     <button
                                       onClick={() => handleStartEdit(log)}
-                                      className="text-indigo-600 hover:text-indigo-850 font-bold transition flex items-center gap-1"
+                                      className={`text-indigo-650 dark:text-indigo-400 hover:opacity-80 font-bold transition flex items-center gap-1`}
                                       title="Edit Entry"
                                     >
                                       <Edit3 size={12} />
@@ -931,7 +933,7 @@ export default function AttendanceModule() {
                                           deleteAttendance(log.id);
                                         }
                                       }}
-                                      className="text-slate-405 hover:text-red-600 font-bold transition flex items-center gap-1"
+                                      className={`${theme.textMuted} hover:text-red-500 font-bold transition flex items-center gap-1`}
                                       title="Delete Entry"
                                     >
                                       <Trash2 size={12} />
@@ -956,17 +958,17 @@ export default function AttendanceModule() {
       {/* QUICK ATTENDANCE ENTRY DIALOG MODAL */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <div className={`${theme.bgCard} border ${theme.borderMain} rounded-3xl w-full max-w-lg shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200`}>
+            <div className={`p-6 border-b ${theme.borderMain} flex items-center justify-between`}>
               <div>
-                <h3 className="text-base font-bold text-slate-800">
+                <h3 className={`text-base font-bold ${theme.textTitle}`}>
                   {editingAttendance ? 'Edit Attendance Entry' : 'New Attendance Entry'}
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Define session duration times and log student remarks</p>
+                <p className={`text-xs ${theme.textMuted} mt-0.5`}>Define session duration times and log student remarks</p>
               </div>
               <button 
                 onClick={() => setShowAddModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className={`w-8 h-8 rounded-full ${theme.bgCardElevated} flex items-center justify-center ${theme.textMuted} hover:${theme.textTitle}`}
               >
                 <X size={16} />
               </button>
@@ -975,77 +977,77 @@ export default function AttendanceModule() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               
               {formError && (
-                <div className="p-3 bg-red-50 border border-red-150 rounded-xl text-xs text-red-600 font-bold">
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-500 font-bold">
                   ⚠️ {formError}
                 </div>
               )}
 
               {/* Student Id selector */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Student</label>
+                <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-wider block`}>Student</label>
                 <select
                   value={formStudentId}
                   onChange={(e) => setFormStudentId(e.target.value)}
-                  className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none"
+                  className={`w-full text-xs font-semibold p-3 ${theme.bgCardElevated} border ${theme.borderMain} rounded-xl focus:outline-none text-current`}
                 >
                   {activeStudents.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.class})</option>
+                    <option key={s.id} value={s.id} className={`${theme.bgCard} text-current`}>{s.name} ({s.class})</option>
                   ))}
                 </select>
               </div>
 
               {/* Session Date */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Date</label>
+                <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-wider block`}>Date</label>
                 <input 
                   type="date" 
                   value={formDate}
                   onChange={(e) => setFormDate(e.target.value)}
-                  className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none"
+                  className={`w-full text-xs font-semibold p-3 ${theme.bgCardElevated} border ${theme.borderMain} rounded-xl focus:outline-none text-current`}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 {/* Entry Time */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Entry Time (Commence)</label>
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-wider block`}>Entry Time (Commence)</label>
                   <input 
                     type="time" 
                     value={formEntryAt}
                     onChange={(e) => setFormEntryAt(e.target.value)}
-                    className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none"
+                    className={`w-full text-xs font-semibold p-3 ${theme.bgCardElevated} border ${theme.borderMain} rounded-xl focus:outline-none text-current`}
                   />
                 </div>
 
                 {/* Exit Time */}
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Exit Time (Dismiss)</label>
+                  <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-wider block`}>Exit Time (Dismiss)</label>
                   <input 
                     type="time" 
                     value={formExitAt}
                     onChange={(e) => setFormExitAt(e.target.value)}
-                    className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none"
+                    className={`w-full text-xs font-semibold p-3 ${theme.bgCardElevated} border ${theme.borderMain} rounded-xl focus:outline-none text-current`}
                   />
                 </div>
               </div>
 
               {/* Live calculated duration indicator feedback */}
-              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-2xl text-xs text-indigo-900 flex justify-between items-center font-bold">
+              <div className={`p-3 ${theme.bgCardElevated} border ${theme.borderMain} rounded-2xl text-xs ${theme.textTitle} flex justify-between items-center font-bold`}>
                 <span className="flex items-center gap-1"><CheckSquare size={13} /> Logged Duration:</span>
-                <span className="text-indigo-700 bg-white px-3 py-1 rounded-full shadow-sm">
+                <span className={`${theme.textAccent} ${theme.bgCard} border ${theme.borderMain} px-3 py-1 rounded-full shadow-sm`}>
                   {calculatedDuration > 0 ? `${Math.round(calculatedDuration * 100) / 100} hours` : '0 hours (invalid timeframe)'}
                 </span>
               </div>
 
               {/* Remarks */}
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Session Logs / Syllabus Notes</label>
+                <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-wider block`}>Session Logs / Syllabus Notes</label>
                 <textarea 
                   value={formRemarks}
                   onChange={(e) => setFormRemarks(e.target.value)}
-                  placeholder="e.g. Conducted mock test in calculus, reviewed geometry formulas, mapped physics graphs..."
+                  placeholder="e.g. Conducted mock test in calculus, reviewed geometry formulas, reviewed exam blueprints..."
                   rows={2}
-                  className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-100 rounded-xl focus:outline-none resize-none"
+                  className={`w-full text-xs font-semibold p-3 ${theme.bgCardElevated} border ${theme.borderMain} rounded-xl focus:outline-none resize-none text-current`}
                 />
               </div>
 
@@ -1054,13 +1056,13 @@ export default function AttendanceModule() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-xs hover:bg-slate-50 transition"
+                  className={`px-4 py-2.5 border ${theme.borderMain} ${theme.textMain} font-semibold rounded-xl text-xs hover:${theme.bgCardElevated} transition`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl text-xs shadow hover:bg-indigo-700 transition"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow transition"
                 >
                   {editingAttendance ? 'Save Changes' : 'Save Log'}
                 </button>

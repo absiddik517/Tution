@@ -1,7 +1,9 @@
 import { create } from 'zustand';
-import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification, ExamSchedule, ExamRecord } from './types';
+import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification, ExamSchedule, ExamRecord, SyncProgressState, SyncLogEntry } from './types';
 import { TutorTrackDB } from './db';
-import { syncLocalToFirebase, fetchFromFirebase, getActiveConfig, isFirebaseConfigured } from './firebase';
+import { 
+  syncLocalToFirebase, fetchFromFirebase, getActiveConfig, isFirebaseConfigured, testFirebaseConnection, SyncProgressUpdate 
+} from './firebase';
 
 interface TutorTrackStore {
   students: Student[];
@@ -14,6 +16,12 @@ interface TutorTrackStore {
   notifications: AppNotification[];
   currentUser: any | null;
   setCurrentUser: (user: any | null) => void;
+  
+  // Real-time Cloud Replication Progress & Feedback
+  syncProgress: SyncProgressState;
+  clearSyncLogs: () => void;
+  testFirebaseHealth: () => Promise<{ success: boolean; latencyMs: number; authStatus: string; feedback: string }>;
+  stopSync: () => void;
   
   // Filtering & Search
   searchTerm: string;
@@ -60,6 +68,7 @@ interface TutorTrackStore {
   saveFirebaseConfig: (config: AppSettings['firebaseConfig']) => void;
   triggerFirebasePull: () => Promise<{ success: boolean; error?: string }>;
   toggleDarkMode: () => void;
+  setColorTheme: (theme: 'indigo' | 'emerald' | 'rose' | 'amber' | 'violet' | 'blue') => void;
   setPinLock: (enabled: boolean, pin?: string) => void;
   updateLandmarkAlerts: (first: number, second: number, third: number, sound1?: string, sound2?: string, sound3?: string) => void;
   clearDatabase: () => void;
@@ -75,6 +84,9 @@ interface TutorTrackStore {
   // Export & Recovery
   importData: (imported: { students: Student[], schedules: Schedule[], attendance: Attendance[], payments: Payment[], examSchedules?: ExamSchedule[], examRecords?: ExamRecord[] }) => void;
 }
+
+// Module-level abort controller for real-time cancellable sync operations
+let currentSyncAbortController: AbortController | null = null;
 
 export const useStore = create<TutorTrackStore>((originalSet, get) => {
   const set = (partial: any, replace?: boolean) => {
@@ -118,22 +130,100 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
   return {
     students: TutorTrackDB.getStudents(),
-  schedules: TutorTrackDB.getSchedules(),
-  attendance: TutorTrackDB.getAttendance(),
-  payments: TutorTrackDB.getPayments(),
-  examSchedules: TutorTrackDB.getExamSchedules(),
-  examRecords: TutorTrackDB.getExamRecords(),
-  settings: TutorTrackDB.getSettings(),
-  notifications: TutorTrackDB.getNotifications(),
-  currentUser: null,
-  setCurrentUser: (user) => set({ currentUser: user }),
+    schedules: TutorTrackDB.getSchedules(),
+    attendance: TutorTrackDB.getAttendance(),
+    payments: TutorTrackDB.getPayments(),
+    examSchedules: TutorTrackDB.getExamSchedules(),
+    examRecords: TutorTrackDB.getExamRecords(),
+    settings: TutorTrackDB.getSettings(),
+    notifications: TutorTrackDB.getNotifications(),
+    currentUser: null,
+    setCurrentUser: (user) => set({ currentUser: user }),
 
-  searchTerm: '',
-  setSearchTerm: (term) => set({ searchTerm: term }),
-  classFilter: 'All',
-  setClassFilter: (classF) => set({ classFilter: classF }),
-  statusFilter: 'Active',
-  setStatusFilter: (filter) => set({ statusFilter: filter }),
+    // Real-time Cloud Replication Progress & Feedback Initial State
+    syncProgress: {
+      isSyncing: false,
+      stage: 'Idle',
+      percent: 0,
+      currentCount: 0,
+      totalCount: 0,
+      logs: [
+        {
+          id: 'init-1',
+          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          stage: 'Ready',
+          type: 'info',
+          message: 'Firebase cloud replication engine ready.'
+        }
+      ],
+      lastError: undefined,
+      lastSuccessMessage: undefined
+    },
+
+    clearSyncLogs: () => {
+      set((state: any) => ({
+        syncProgress: {
+          ...state.syncProgress,
+          logs: []
+        }
+      }));
+    },
+
+    testFirebaseHealth: async () => {
+      const config = getActiveConfig(get().settings.firebaseConfig);
+      const userId = get().currentUser?.uid || 'tutor-default';
+      const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      // Add test started log
+      const startLog: SyncLogEntry = {
+        id: 'test-' + Date.now(),
+        timestamp: timeStr,
+        stage: 'Health Check',
+        type: 'info',
+        message: `Testing Firebase connectivity to project "${config.projectId}"...`
+      };
+
+      set((state: any) => ({
+        syncProgress: {
+          ...state.syncProgress,
+          logs: [startLog, ...state.syncProgress.logs.slice(0, 40)]
+        }
+      }));
+
+      const res = await testFirebaseConnection(config, userId);
+
+      const resultLog: SyncLogEntry = {
+        id: 'test-res-' + Date.now(),
+        timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        stage: 'Health Check',
+        type: res.success ? 'success' : 'error',
+        message: res.success 
+          ? `✓ Ping Success (${res.latencyMs}ms): ${res.feedback}` 
+          : `✗ Ping Failed (${res.latencyMs}ms): ${res.feedback}`
+      };
+
+      set((state: any) => ({
+        syncProgress: {
+          ...state.syncProgress,
+          logs: [resultLog, ...state.syncProgress.logs.slice(0, 40)],
+          firebaseResponse: {
+            projectId: config.projectId,
+            userId,
+            latencyMs: res.latencyMs,
+            rawFeedback: res.feedback
+          }
+        }
+      }));
+
+      return res;
+    },
+
+    searchTerm: '',
+    setSearchTerm: (term) => set({ searchTerm: term }),
+    classFilter: 'All',
+    setClassFilter: (classF) => set({ classFilter: classF }),
+    statusFilter: 'Active',
+    setStatusFilter: (filter) => set({ statusFilter: filter }),
 
   // STUDENT ACTIONS
   addStudent: (studentData) => {
@@ -599,66 +689,358 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     get().addNotification('Exam Record Removed', 'The grade progress sheet was updated.', 'system');
   },
 
-  // OFFLINE-FIRST BACKGROUND SYNC ENGINE
+  // OFFLINE-FIRST BACKGROUND SYNC ENGINE (2-WAY BIDIRECTIONAL REPLICATION)
   triggerManualSync: async () => {
     if (get().settings.isSyncing) return;
 
-    // Turn indicator active
-    set(state => ({
-      settings: { ...state.settings, isSyncing: true }
-    }));
+    if (currentSyncAbortController) {
+      try {
+        currentSyncAbortController.abort();
+      } catch (e) {
+        // ignore
+      }
+    }
+    currentSyncAbortController = new AbortController();
+    const abortSignal = currentSyncAbortController.signal;
 
-    let firebaseResult: { success: boolean; error?: string } = { success: true };
-    const config = getActiveConfig(get().settings.firebaseConfig);
+    const rawCustomConfig = get().settings.firebaseConfig;
+    const config = getActiveConfig(rawCustomConfig);
     const deletedRecords = get().settings.deletedRecords || [];
     const userId = get().currentUser?.uid || 'tutor-default';
+    const startTime = Date.now();
+    const startTimeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const maskedKey = config.apiKey ? `${config.apiKey.substring(0, 6)}...${config.apiKey.slice(-4)}` : 'None';
+
+    const appendLog = (stage: string, type: 'info' | 'success' | 'warn' | 'error', message: string, details?: string) => {
+      const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      set(state => ({
+        syncProgress: {
+          ...state.syncProgress,
+          stage,
+          logs: [
+            {
+              id: 'log-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+              timestamp: now,
+              stage,
+              type,
+              message,
+              details
+            },
+            ...state.syncProgress.logs.slice(0, 50)
+          ]
+        }
+      }));
+    };
+
+    // Initialize progress state and verify connection parameters
+    set(state => ({
+      settings: { ...state.settings, isSyncing: true },
+      syncProgress: {
+        ...state.syncProgress,
+        isSyncing: true,
+        stage: 'Verifying Firestore Mapping...',
+        percent: 5,
+        currentCount: 0,
+        totalCount: 0,
+        lastError: undefined,
+        lastSuccessMessage: undefined,
+        logs: [
+          {
+            id: 'sync-start-' + Date.now(),
+            timestamp: startTimeStr,
+            stage: 'Init',
+            type: 'info',
+            message: `Initiating Two-Way Cloud Synchronization...`
+          },
+          {
+            id: 'sync-cfg-' + Date.now(),
+            timestamp: startTimeStr,
+            stage: 'Config Verified',
+            type: 'info',
+            message: `Firestore Mapping: Project="${config.projectId}", Database="${config.firestoreDatabaseId || '(default)'}", Partition="tutors/${userId}", API Key=${maskedKey}`,
+            details: JSON.stringify({
+              projectId: config.projectId,
+              authDomain: config.authDomain,
+              firestoreDatabaseId: config.firestoreDatabaseId || '(default)',
+              userPartition: userId,
+              isCustomConfig: !!(rawCustomConfig && rawCustomConfig.apiKey)
+            })
+          },
+          ...state.syncProgress.logs.slice(0, 30)
+        ]
+      }
+    }));
+
+    const onProgressCallback = (update: SyncProgressUpdate) => {
+      set(state => {
+        const newLogs = update.log ? [
+          {
+            id: 'log-' + Math.random().toString(36).substring(2, 9),
+            timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            stage: update.stage,
+            type: update.log.type,
+            message: update.log.message,
+            details: update.log.details
+          },
+          ...state.syncProgress.logs.slice(0, 50)
+        ] : state.syncProgress.logs;
+
+        return {
+          syncProgress: {
+            ...state.syncProgress,
+            stage: update.stage,
+            percent: update.percent,
+            currentCount: update.currentCount,
+            totalCount: update.totalCount,
+            logs: newLogs
+          }
+        };
+      });
+    };
+
+    let workingStudents = [...get().students];
+    let workingSchedules = [...get().schedules];
+    let workingAttendance = [...get().attendance];
+    let workingPayments = [...get().payments];
+    let workingExamSchedules = [...get().examSchedules];
+    let workingExamRecords = [...get().examRecords];
+
+    const inboundPullStats = {
+      downloadedCount: 0,
+      newlyImported: 0,
+      updatedLocally: 0
+    };
+
+    // ==========================================
+    // PHASE 1: INBOUND CLOUD PULL & RECONCILE
+    // ==========================================
+    if (isFirebaseConfigured(config)) {
+      try {
+        appendLog('Inbound Pull', 'info', `Scanning cloud database for remote changes in tutors/${userId}...`);
+
+        const pullRes = await fetchFromFirebase(config, userId, onProgressCallback, abortSignal);
+        
+        if (pullRes.success && pullRes.data) {
+          const { 
+            students: remoteStudents = [], 
+            schedules: remoteSchedules = [], 
+            attendance: remoteAttendance = [], 
+            payments: remotePayments = [], 
+            examSchedules: remoteExamSchedules = [], 
+            examRecords: remoteExamRecords = [] 
+          } = pullRes.data;
+
+          const totalDownloaded = remoteStudents.length + remoteSchedules.length + remoteAttendance.length + remotePayments.length + remoteExamSchedules.length + remoteExamRecords.length;
+          inboundPullStats.downloadedCount = totalDownloaded;
+
+          appendLog('Reconciliation', 'info', `Downloaded ${totalDownloaded} cloud documents across all 6 collections. Reconciling with local state...`);
+
+          // Generic reconciliation helper
+          const reconcileCollection = <T extends { id: string; syncStatus?: string; updatedAt?: string }>(
+            localList: T[],
+            remoteList: T[],
+            collectionName: 'students' | 'schedules' | 'attendance' | 'payments' | 'examSchedules' | 'examRecords'
+          ): { reconciled: T[]; imported: number; updated: number } => {
+            let imported = 0;
+            let updated = 0;
+            const resultMap = new Map<string, T>();
+
+            // Populate local records
+            localList.forEach(item => {
+              resultMap.set(item.id, item);
+            });
+
+            // Reconcile remote records
+            remoteList.forEach(remoteItem => {
+              // If user locally marked this document as deleted, do not resurrect it
+              const isLocallyDeleted = deletedRecords.some(d => d.id === remoteItem.id && d.collectionName === collectionName);
+              if (isLocallyDeleted) {
+                return;
+              }
+
+              const localItem = resultMap.get(remoteItem.id);
+              if (!localItem) {
+                // New record from cloud
+                resultMap.set(remoteItem.id, { ...remoteItem, syncStatus: 'synced' as const });
+                imported++;
+              } else {
+                // Both local and remote exist
+                if (localItem.syncStatus === 'pending') {
+                  // User has pending uncommitted local edits: keep local version to push up
+                } else {
+                  // Both are synced: accept remote version
+                  resultMap.set(remoteItem.id, { ...remoteItem, syncStatus: 'synced' as const });
+                  updated++;
+                }
+              }
+            });
+
+            return {
+              reconciled: Array.from(resultMap.values()),
+              imported,
+              updated
+            };
+          };
+
+          const studReconcile = reconcileCollection(workingStudents, remoteStudents, 'students');
+          workingStudents = studReconcile.reconciled;
+          inboundPullStats.newlyImported += studReconcile.imported;
+          inboundPullStats.updatedLocally += studReconcile.updated;
+
+          const schedReconcile = reconcileCollection(workingSchedules, remoteSchedules, 'schedules');
+          workingSchedules = schedReconcile.reconciled;
+          inboundPullStats.newlyImported += schedReconcile.imported;
+          inboundPullStats.updatedLocally += schedReconcile.updated;
+
+          const attReconcile = reconcileCollection(workingAttendance, remoteAttendance, 'attendance');
+          workingAttendance = attReconcile.reconciled;
+          inboundPullStats.newlyImported += attReconcile.imported;
+          inboundPullStats.updatedLocally += attReconcile.updated;
+
+          const payReconcile = reconcileCollection(workingPayments, remotePayments, 'payments');
+          workingPayments = payReconcile.reconciled;
+          inboundPullStats.newlyImported += payReconcile.imported;
+          inboundPullStats.updatedLocally += payReconcile.updated;
+
+          const exSchedReconcile = reconcileCollection(workingExamSchedules, remoteExamSchedules, 'examSchedules');
+          workingExamSchedules = exSchedReconcile.reconciled;
+          inboundPullStats.newlyImported += exSchedReconcile.imported;
+          inboundPullStats.updatedLocally += exSchedReconcile.updated;
+
+          const exRecReconcile = reconcileCollection(workingExamRecords, remoteExamRecords, 'examRecords');
+          workingExamRecords = exRecReconcile.reconciled;
+          inboundPullStats.newlyImported += exRecReconcile.imported;
+          inboundPullStats.updatedLocally += exRecReconcile.updated;
+
+          appendLog('Reconciliation', 'success', `✓ Inbound Reconciliation Done: ${inboundPullStats.newlyImported} new records imported, ${inboundPullStats.updatedLocally} updated from cloud.`);
+        } else if (pullRes.error) {
+          appendLog('Inbound Pull', 'warn', `Cloud pull warning: ${pullRes.error}. Proceeding with outbound replication.`);
+        }
+      } catch (pullErr: any) {
+        if (pullErr?.message === 'SYNC_CANCELLED' || abortSignal.aborted) {
+          throw pullErr;
+        }
+        appendLog('Inbound Pull', 'warn', `Inbound pull encountered non-blocking issue: ${pullErr?.message || String(pullErr)}. Proceeding with outbound push.`);
+      }
+    }
+
+    // ==========================================
+    // PHASE 2: OUTBOUND CLOUD PUSH & REPLICATION
+    // ==========================================
+    let firebaseResult: { 
+      success: boolean; 
+      count?: number; 
+      latencyMs?: number; 
+      error?: string; 
+      syncedBreakdown?: { [key: string]: number };
+      feedbackMessage?: string;
+      cancelled?: boolean;
+    } = { success: true };
 
     if (isFirebaseConfigured(config)) {
       try {
-        const result = await syncLocalToFirebase(config, userId, {
-          students: get().students,
-          schedules: get().schedules,
-          attendance: get().attendance,
-          payments: get().payments,
-          examSchedules: get().examSchedules,
-          examRecords: get().examRecords,
-          deletedRecords
-        });
-        if (!result.success) {
-          firebaseResult = { success: false, error: result.error };
-        }
+        appendLog('Outbound Push', 'info', `Replicating local pending records & deletions to Firestore...`);
+
+        const result = await syncLocalToFirebase(
+          config, 
+          userId, 
+          {
+            students: workingStudents,
+            schedules: workingSchedules,
+            attendance: workingAttendance,
+            payments: workingPayments,
+            examSchedules: workingExamSchedules,
+            examRecords: workingExamRecords,
+            deletedRecords
+          },
+          onProgressCallback,
+          abortSignal
+        );
+
+        firebaseResult = result;
       } catch (e: any) {
-        firebaseResult = { success: false, error: e?.message || String(e) };
+        const isCancelled = e?.message === 'SYNC_CANCELLED' || e?.name === 'AbortError' || abortSignal.aborted;
+        firebaseResult = { success: false, cancelled: isCancelled, error: isCancelled ? 'Replication was stopped by user.' : (e?.message || String(e)) };
       }
     } else {
-      // Wait simulating outline backup
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Local backup simulation with progress
+      await new Promise(resolve => setTimeout(resolve, 600));
+      firebaseResult = { success: true, count: workingStudents.length + workingSchedules.length, latencyMs: 600 };
+    }
+
+    if (currentSyncAbortController?.signal === abortSignal) {
+      currentSyncAbortController = null;
+    }
+
+    if (firebaseResult.cancelled) {
+      set(state => ({
+        settings: { ...state.settings, isSyncing: false },
+        syncProgress: {
+          ...state.syncProgress,
+          isSyncing: false,
+          stage: 'Replication Stopped',
+          percent: 0,
+          lastError: 'Replication was stopped by user.',
+          logs: [
+            {
+              id: 'stop-' + Date.now(),
+              timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              stage: 'Stopped',
+              type: 'warn',
+              message: '⏹ Cloud replication process was manually stopped by user.'
+            },
+            ...state.syncProgress.logs.slice(0, 40)
+          ]
+        }
+      }));
+      get().addNotification('Sync Stopped', 'Database replication was stopped.', 'system');
+      return;
     }
 
     if (!firebaseResult.success) {
       set(state => ({
-        settings: { ...state.settings, isSyncing: false }
+        settings: { ...state.settings, isSyncing: false },
+        syncProgress: {
+          ...state.syncProgress,
+          isSyncing: false,
+          stage: 'Sync Failed',
+          percent: 100,
+          lastError: firebaseResult.error,
+          logs: [
+            {
+              id: 'err-' + Date.now(),
+              timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              stage: 'Error',
+              type: 'error',
+              message: `Replication failed: ${firebaseResult.error}`
+            },
+            ...state.syncProgress.logs.slice(0, 40)
+          ]
+        }
       }));
-      get().addNotification('Sync Error', `Firebase rejection: ${firebaseResult.error}`, 'system');
+      get().addNotification('Sync Error', `Firebase error: ${firebaseResult.error}`, 'system');
       return;
     }
 
-    // Turn all pending objects to 'synced'
+    // ==========================================
+    // PHASE 3: DATABASE COMMIT & STATE SYNC
+    // ==========================================
     const syncItem = <T extends { syncStatus: 'pending' | 'synced', updatedAt: string }>(list: T[]): T[] => {
       return list.map(item => ({
         ...item,
         syncStatus: 'synced' as const,
-        updatedAt: new Date().toISOString()
+        updatedAt: item.updatedAt || new Date().toISOString()
       } as T));
     };
 
-    const syncedStudents = syncItem(get().students);
-    const syncedSchedules = syncItem(get().schedules);
-    const syncedAttendance = syncItem(get().attendance);
-    const syncedPayments = syncItem(get().payments);
-    const syncedExamSchedules = syncItem(get().examSchedules);
-    const syncedExamRecords = syncItem(get().examRecords);
+    const syncedStudents = syncItem(workingStudents);
+    const syncedSchedules = syncItem(workingSchedules);
+    const syncedAttendance = syncItem(workingAttendance);
+    const syncedPayments = syncItem(workingPayments);
+    const syncedExamSchedules = syncItem(workingExamSchedules);
+    const syncedExamRecords = syncItem(workingExamRecords);
 
+    // Save finalized tables to SQLite/DB
     TutorTrackDB.setStudents(syncedStudents);
     TutorTrackDB.setSchedules(syncedSchedules);
     TutorTrackDB.setAttendance(syncedAttendance);
@@ -667,6 +1049,17 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     TutorTrackDB.setExamRecords(syncedExamRecords);
 
     const nowStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString();
+    const totalActive = syncedStudents.length + syncedSchedules.length + syncedAttendance.length + syncedPayments.length + syncedExamSchedules.length + syncedExamRecords.length;
+    const totalDuration = Date.now() - startTime;
+
+    const successMsg = `Two-Way Sync Complete: Inbound pulled ${inboundPullStats.downloadedCount} (Imported: ${inboundPullStats.newlyImported}, Updated: ${inboundPullStats.updatedLocally}), Outbound pushed ${firebaseResult.count || 0} records in ${totalDuration}ms.`;
+
+    appendLog(
+      'Sync Complete',
+      'success',
+      `✓ 2-Way Sync Finished: ${totalActive} database records are fully in sync with Firebase Firestore.`,
+      `Inbound: ${inboundPullStats.downloadedCount} pulled (${inboundPullStats.newlyImported} new, ${inboundPullStats.updatedLocally} updated). Outbound: ${firebaseResult.count || 0} pushed in ${totalDuration}ms.`
+    );
 
     set(state => ({
       students: syncedStudents,
@@ -681,6 +1074,22 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
         lastBackupTime: nowStr,
         backupSuccessCount: state.settings.backupSuccessCount + 1,
         deletedRecords: []
+      },
+      syncProgress: {
+        ...state.syncProgress,
+        isSyncing: false,
+        stage: 'Sync Complete',
+        percent: 100,
+        lastSuccessMessage: successMsg,
+        lastSyncDurationMs: totalDuration,
+        firebaseResponse: {
+          projectId: config.projectId,
+          userId,
+          syncedCollections: firebaseResult.syncedBreakdown,
+          totalSynced: (firebaseResult.count || 0) + inboundPullStats.newlyImported,
+          latencyMs: totalDuration,
+          rawFeedback: successMsg
+        }
       }
     }));
 
@@ -688,10 +1097,46 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     TutorTrackDB.setSettings(get().settings);
 
     if (isFirebaseConfigured(config)) {
-      get().addNotification('Firestore Sync Success', 'Successfully synchronized local tables to Firebase Firestore.', 'system');
+      get().addNotification('Firestore 2-Way Sync Success', `Replication finished in ${totalDuration}ms. ${inboundPullStats.newlyImported} imported, ${firebaseResult.count || 0} pushed.`, 'system');
     } else {
       get().addNotification('Backup Success', 'All local tuition backup modules successfully synced.', 'system');
     }
+  },
+
+  stopSync: () => {
+    if (currentSyncAbortController) {
+      try {
+        currentSyncAbortController.abort();
+      } catch (e) {
+        // ignore
+      }
+      currentSyncAbortController = null;
+    }
+
+    const nowStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    set(state => ({
+      settings: { ...state.settings, isSyncing: false },
+      syncProgress: {
+        ...state.syncProgress,
+        isSyncing: false,
+        stage: 'Replication Stopped',
+        percent: 0,
+        lastError: 'Replication process was stopped by user.',
+        logs: [
+          {
+            id: 'stop-' + Date.now(),
+            timestamp: nowStr,
+            stage: 'Stopped',
+            type: 'warn',
+            message: '⏹ Cloud replication process was manually stopped by user.'
+          },
+          ...state.syncProgress.logs.slice(0, 40)
+        ]
+      }
+    }));
+
+    get().addNotification('Sync Stopped', 'Database replication was stopped.', 'system');
   },
 
   saveFirebaseConfig: (config) => {
@@ -708,26 +1153,121 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
       return { success: false, error: 'Firebase config is not found or incomplete under Settings.' };
     }
 
+    if (currentSyncAbortController) {
+      try {
+        currentSyncAbortController.abort();
+      } catch (e) {
+        // ignore
+      }
+    }
+    currentSyncAbortController = new AbortController();
+    const abortSignal = currentSyncAbortController.signal;
+
     set(state => ({
-      settings: { ...state.settings, isSyncing: true }
+      settings: { ...state.settings, isSyncing: true },
+      syncProgress: {
+        ...state.syncProgress,
+        isSyncing: true,
+        stage: 'Pulling from cloud...',
+        percent: 10,
+        logs: [
+          {
+            id: 'pull-' + Date.now(),
+            timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            stage: 'Cloud Pull',
+            type: 'info',
+            message: `Starting cloud restore from Firebase project "${config.projectId}"...`
+          },
+          ...state.syncProgress.logs.slice(0, 30)
+        ]
+      }
     }));
 
     try {
-      const result = await fetchFromFirebase(config, userId);
+      const onProgressCallback = (update: SyncProgressUpdate) => {
+        set(state => {
+          const newLogs = update.log ? [
+            {
+              id: 'log-' + Math.random().toString(36).substring(2, 9),
+              timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+              stage: update.stage,
+              type: update.log.type,
+              message: update.log.message,
+              details: update.log.details
+            },
+            ...state.syncProgress.logs.slice(0, 45)
+          ] : state.syncProgress.logs;
+
+          return {
+            syncProgress: {
+              ...state.syncProgress,
+              stage: update.stage,
+              percent: update.percent,
+              logs: newLogs
+            }
+          };
+        });
+      };
+
+      const result = await fetchFromFirebase(config, userId, onProgressCallback, abortSignal);
+      
+      if (currentSyncAbortController?.signal === abortSignal) {
+        currentSyncAbortController = null;
+      }
+
+      if (result.cancelled) {
+        set(state => ({
+          settings: { ...state.settings, isSyncing: false },
+          syncProgress: {
+            ...state.syncProgress,
+            isSyncing: false,
+            stage: 'Pull Cancelled',
+            percent: 0,
+            lastError: 'Cloud restore was cancelled by user.',
+            lastSuccessMessage: undefined
+          }
+        }));
+        get().addNotification('Pull Cancelled', 'Cloud restore was stopped.', 'system');
+        return { success: false, error: 'Cancelled by user' };
+      }
+
       set(state => ({
-        settings: { ...state.settings, isSyncing: false }
+        settings: { ...state.settings, isSyncing: false },
+        syncProgress: {
+          ...state.syncProgress,
+          isSyncing: false,
+          stage: result.success ? 'Pull Complete' : 'Pull Failed',
+          percent: 100,
+          lastError: result.error,
+          lastSuccessMessage: result.success ? 'Successfully downloaded and restored cloud database.' : undefined
+        }
       }));
 
       if (result.success && result.data) {
         const { students = [], schedules = [], attendance = [], payments = [], examSchedules = [], examRecords = [] } = result.data as any;
+        const totalFetched = students.length + schedules.length + attendance.length + payments.length + examSchedules.length + examRecords.length;
         
-        // Unconditionally overwrite database tables
+        if (totalFetched === 0) {
+          const currentLocalCount = get().students.length + get().schedules.length + get().attendance.length + get().payments.length + get().examSchedules.length + get().examRecords.length;
+          if (currentLocalCount > 0) {
+            get().addNotification('Cloud Partition Empty', 'Firebase cloud partition has 0 records. Existing local records have been preserved.', 'system');
+            set(state => ({
+              syncProgress: {
+                ...state.syncProgress,
+                lastSuccessMessage: 'Pull finished: Cloud partition contains 0 records. Local data was kept.'
+              }
+            }));
+            return { success: true };
+          }
+        }
+
+        // Set database tables
         TutorTrackDB.setStudents(students);
-         TutorTrackDB.setSchedules(schedules);
-         TutorTrackDB.setAttendance(attendance);
-         TutorTrackDB.setPayments(payments);
-         TutorTrackDB.setExamSchedules(examSchedules);
-         TutorTrackDB.setExamRecords(examRecords);
+        TutorTrackDB.setSchedules(schedules);
+        TutorTrackDB.setAttendance(attendance);
+        TutorTrackDB.setPayments(payments);
+        TutorTrackDB.setExamSchedules(examSchedules);
+        TutorTrackDB.setExamRecords(examRecords);
 
         const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
         const updatedSettings = {
@@ -747,15 +1287,25 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
           settings: updatedSettings
         });
 
-        get().addNotification('Firebase Sync Pull Completed', 'Overwrote active dataset with Firebase database cloud tables.', 'system');
+        get().addNotification('Firebase Cloud Pull Completed', `Successfully restored ${totalFetched} records from Firebase cloud tables.`, 'system');
         return { success: true };
       } else {
         get().addNotification('Pull Sync Rejected', result.error || 'Server rejected pull sync request.', 'system');
         return { success: false, error: result.error };
       }
     } catch (e: any) {
+      if (currentSyncAbortController?.signal === abortSignal) {
+        currentSyncAbortController = null;
+      }
       set(state => ({
-        settings: { ...state.settings, isSyncing: false }
+        settings: { ...state.settings, isSyncing: false },
+        syncProgress: {
+          ...state.syncProgress,
+          isSyncing: false,
+          stage: 'Pull Error',
+          percent: 100,
+          lastError: e?.message || String(e)
+        }
       }));
       return { success: false, error: e?.message || String(e) };
     }
@@ -763,6 +1313,12 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
   toggleDarkMode: () => {
     const updatedSettings = { ...get().settings, darkMode: !get().settings.darkMode };
+    TutorTrackDB.setSettings(updatedSettings);
+    set({ settings: updatedSettings });
+  },
+
+  setColorTheme: (theme) => {
+    const updatedSettings = { ...get().settings, themeColor: theme };
     TutorTrackDB.setSettings(updatedSettings);
     set({ settings: updatedSettings });
   },

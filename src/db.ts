@@ -332,6 +332,7 @@ export const TutorTrackDB = {
   getSettings: (): AppSettings => {
     const defaultSettings: AppSettings = {
       darkMode: false,
+      themeColor: 'indigo',
       pinLockEnabled: false,
       pinCode: '',
       biometricLockEnabled: false,

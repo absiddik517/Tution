@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from './store';
 import { 
   Users, Calendar, Clock, DollarSign, CloudLightning, ShieldCheck, ShieldAlert, KeyRound, Bell, Settings, LogOut, CheckCircle, Unlock, Smartphone, Monitor, ChevronRight, Menu, X, NotebookText, HelpCircle, LogIn, RotateCcw, Cloud, GraduationCap,
-  Mail, UserPlus, Sparkles, Lock, ArrowLeft
+  Mail, UserPlus, Sparkles, Lock, ArrowLeft, StopCircle
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import StudentModule from './components/StudentModule';
@@ -13,12 +13,14 @@ import ExamsModule from './components/ExamsModule';
 import SettingsModule from './components/SettingsModule';
 import { initializeFirebase, signInWithGoogle, logOutFromFirebase, signInWithEmail, signUpWithEmail, signInAnonymouslyFromFirebase } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useTheme } from './theme';
 
 export default function App() {
+  const { theme, presetName, presetKey, darkMode } = useTheme();
   const { 
     settings, notifications, students, schedules, attendance, payments, examSchedules, examRecords,
     markNotificationRead, clearNotifications, triggerManualSync, undoLocalChange,
-    currentUser, setCurrentUser
+    currentUser, setCurrentUser, syncProgress, stopSync
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'students' | 'schedules' | 'attendance' | 'payments' | 'exams' | 'settings'>('dashboard');
@@ -45,6 +47,15 @@ export default function App() {
 
   // Alarm clock ticking tracking state
   const [currentTimeState, setCurrentTimeState] = useState<string>('');
+
+  // Synchronize document dark mode class
+  useEffect(() => {
+    if (settings.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [settings.darkMode]);
 
   // Setup reactive auth state listener
   useEffect(() => {
@@ -298,10 +309,10 @@ export default function App() {
 
   if (isAuthLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4">
+      <div className={`min-h-screen ${theme.bgMain} flex flex-col justify-center items-center p-4`}>
         <div className="text-center space-y-4">
-          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-xs text-slate-400 font-mono tracking-widest uppercase">Initializing Secure Auth Layer...</p>
+          <div className={`w-12 h-12 border-4 ${theme.textAccent.replace('text-', 'border-')} border-t-transparent rounded-full animate-spin mx-auto`}></div>
+          <p className={`text-xs ${theme.textMuted} font-mono tracking-widest uppercase`}>Initializing Secure Auth Layer...</p>
         </div>
       </div>
     );
@@ -309,24 +320,34 @@ export default function App() {
 
   if (!currentUser && !proceedAsOffline) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center p-4 font-sans text-slate-800">
-        <div className="w-full max-w-sm bg-white border border-slate-200 rounded-[32px] p-6 space-y-6 shadow-xl relative overflow-hidden">
+      <div className={`min-h-screen ${theme.bgMain} flex flex-col justify-center items-center p-4 font-sans ${theme.textMain}`}>
+        <div className={`w-full max-w-sm ${theme.bgCard} border ${theme.borderMain} rounded-[32px] p-6 space-y-6 shadow-xl relative overflow-hidden`}>
           
           {/* Header branding block */}
           <div className="text-center space-y-3">
-            <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-indigo-100 text-white font-black text-xl font-display">
+            <div className={`w-14 h-14 ${theme.primary} rounded-2xl flex items-center justify-center mx-auto shadow-lg text-white font-black text-xl font-display`}>
               TT
             </div>
             <div className="space-y-1">
-              <h2 className="text-2xl font-black font-display tracking-tight text-slate-900">TutorTrack Secure Login</h2>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto">Access your personalized pupil database, weekly schedules, and financial registers from any device.</p>
+              <h2 className={`text-2xl font-black font-display tracking-tight ${theme.textTitle}`}>TutorTrack Secure Login</h2>
+              <p className={`text-xs ${theme.textMuted} max-w-xs mx-auto`}>Access your personalized pupil database, weekly schedules, and financial registers from any device.</p>
             </div>
           </div>
 
           {authFormError && (
-            <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-[11px] font-bold leading-normal space-y-1">
-              <p className="flex items-center gap-1.5"><ShieldAlert size={14} className="shrink-0" /> Error Details</p>
-              <p className="font-normal text-slate-600">{authFormError}</p>
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 rounded-2xl text-[11px] font-bold leading-normal space-y-2">
+              <p className="flex items-center gap-1.5"><ShieldAlert size={14} className="shrink-0" /> Authentication Notice</p>
+              <p className={`font-normal ${theme.textMuted}`}>{authFormError}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem('tutortrack_guest_sandbox', 'true');
+                  setProceedAsOffline(true);
+                }}
+                className="w-full py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-[11px] transition"
+              >
+                Continue in Local Offline Mode
+              </button>
             </div>
           )}
 
@@ -340,10 +361,10 @@ export default function App() {
                     await signInWithGoogle(settings.firebaseConfig);
                   } catch (err: any) {
                     const msg = err?.message || String(err);
-                    setAuthFormError(`Google Sign-In failed/blocked. Since third-party cookies or popups are often restricted in sandbox sandboxes, try using the "Email/Password" or "Instant Cloud" buttons instead. Code: ${msg}`);
+                    setAuthFormError(`Google Sign-In failed or blocked: ${msg}. You can continue offline or try email sign-in.`);
                   }
                 }}
-                className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2.5 transition active:scale-98"
+                className={`w-full py-3.5 px-4 ${theme.btnPrimary} text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2.5 transition active:scale-98 shadow-sm`}
               >
                 <LogIn size={14} />
                 Sign In securely with Google
@@ -355,9 +376,9 @@ export default function App() {
                   setAuthFormError('');
                   setAuthMode('email');
                 }}
-                className="w-full py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98"
+                className={`w-full py-3 px-4 ${theme.bgCardElevated} border ${theme.borderMain} hover:${theme.bgCardHover} ${theme.textMain} rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98`}
               >
-                <Mail size={14} className="text-slate-500" />
+                <Mail size={14} className={theme.textMuted} />
                 Sign In or Register with Email
               </button>
 
@@ -368,18 +389,18 @@ export default function App() {
                     setAuthFormError('');
                     await signInAnonymouslyFromFirebase(settings.firebaseConfig);
                   } catch (err: any) {
-                    setAuthFormError(`Anonymous authentication layer failed: ${err?.message || String(err)}. Make sure Anonymous Sign-in is enabled in your Firebase console settings.`);
+                    setAuthFormError(`Anonymous authentication layer failed: ${err?.message || String(err)}. Click below to proceed offline.`);
                   }
                 }}
-                className="w-full py-3 px-4 bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98"
+                className={`w-full py-3 px-4 ${theme.bgAccent} border ${theme.borderAccent} hover:opacity-90 ${theme.textAccent} rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98`}
               >
-                <Sparkles size={14} className="text-indigo-500" />
+                <Sparkles size={14} className={theme.textAccent} />
                 Instant Cloud Sync Access (Anonymous)
               </button>
 
               <div className="relative py-1 flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-                <span className="relative bg-white px-3 text-[9px] uppercase font-bold tracking-widest text-slate-400">or offline alternative</span>
+                <div className="absolute inset-0 flex items-center"><div className={`w-full border-t ${theme.borderMuted}`}></div></div>
+                <span className={`relative ${theme.bgCard} px-3 text-[9px] uppercase font-bold tracking-widest ${theme.textMuted}`}>or offline alternative</span>
               </div>
 
               {/* Local fallback options */}
@@ -388,7 +409,7 @@ export default function App() {
                   localStorage.setItem('tutortrack_guest_sandbox', 'true');
                   setProceedAsOffline(true);
                 }}
-                className="w-full py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98"
+                className={`w-full py-3 px-4 ${theme.bgCardElevated} border ${theme.borderMain} hover:${theme.bgCardHover} ${theme.textTitle} rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98`}
               >
                 Enter Temporary Offline Sandbox
               </button>
@@ -424,14 +445,14 @@ export default function App() {
               }}
               className="space-y-4"
             >
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className={`flex items-center justify-between border-b ${theme.borderMuted} pb-2.5`}>
                 <button
                   type="button"
                   onClick={() => {
                     setAuthFormError('');
                     setAuthMode('options');
                   }}
-                  className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 transition"
+                  className={`inline-flex items-center gap-1 text-xs font-bold ${theme.textMuted} hover:${theme.textTitle} transition`}
                 >
                   <ArrowLeft size={13} /> Back
                 </button>
@@ -441,7 +462,7 @@ export default function App() {
                     setAuthFormError('');
                     setIsSignUp(!isSignUp);
                   }}
-                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-800 underline transition"
+                  className={`text-xs font-extrabold ${theme.textAccent} hover:underline transition`}
                 >
                   {isSignUp ? 'Switch to Sign In' : 'Create new account'}
                 </button>
@@ -449,7 +470,7 @@ export default function App() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email Address</label>
+                  <label className={`block text-[9px] font-bold ${theme.textMuted} uppercase tracking-wider mb-1`}>Email Address</label>
                   <div className="relative">
                     <input
                       type="email"
@@ -457,14 +478,14 @@ export default function App() {
                       placeholder="teacher@tutortrack.com"
                       value={emailInput}
                       onChange={(e) => setEmailInput(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                      className={`w-full pl-9 pr-3 py-2 ${theme.bgInput} rounded-xl text-xs focus:outline-none transition`}
                     />
-                    <Mail size={13} className="absolute left-3 top-3 text-slate-400" />
+                    <Mail size={13} className={`absolute left-3 top-3 ${theme.textMuted}`} />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Password</label>
+                  <label className={`block text-[9px] font-bold ${theme.textMuted} uppercase tracking-wider mb-1`}>Password</label>
                   <div className="relative">
                     <input
                       type="password"
@@ -473,16 +494,16 @@ export default function App() {
                       placeholder="••••••••"
                       value={passwordInput}
                       onChange={(e) => setPasswordInput(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                      className={`w-full pl-9 pr-3 py-2 ${theme.bgInput} rounded-xl text-xs focus:outline-none transition`}
                     />
-                    <Lock size={13} className="absolute left-3 top-3 text-slate-400" />
+                    <Lock size={13} className={`absolute left-3 top-3 ${theme.textMuted}`} />
                   </div>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-md shadow-indigo-100"
+                className={`w-full py-3 ${theme.btnPrimary} text-white rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-md`}
               >
                 {isSignUp ? <UserPlus size={14} /> : <LogIn size={14} />}
                 {isSignUp ? 'Create Secure Account' : 'Sign In Securely'}
@@ -490,8 +511,8 @@ export default function App() {
             </form>
           )}
 
-          <div className="bg-slate-50 border border-slate-100 p-3 rounded-2xl text-[9.5px] text-slate-500 leading-normal space-y-1">
-            <p className="font-extrabold uppercase text-slate-705 text-slate-700 tracking-wide">🔐 Security Information</p>
+          <div className={`${theme.bgCardElevated} border ${theme.borderMuted} p-3 rounded-2xl text-[9.5px] ${theme.textMuted} leading-normal space-y-1`}>
+            <p className={`font-extrabold uppercase ${theme.textTitle} tracking-wide`}>🔐 Security Information</p>
             <p>Cloud synchronization utilizes isolated customer sandbox namespaces. Pure guest sandbox is retained in standard safe browser storage parameters on your local terminal.</p>
           </div>
         </div>
@@ -501,15 +522,15 @@ export default function App() {
 
   if (isLocked) {
     return (
-      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4 font-sans text-white">
-        <div className="w-full max-w-sm bg-slate-800/80 border border-slate-700/65 rounded-[32px] p-6 text-center space-y-6 shadow-2xl backdrop-blur-md">
+      <div className={`min-h-screen ${theme.bgMain} flex flex-col justify-center items-center p-4 font-sans ${theme.textMain}`}>
+        <div className={`w-full max-w-sm ${theme.bgCard} border ${theme.borderMain} rounded-[32px] p-6 text-center space-y-6 shadow-2xl backdrop-blur-md`}>
           
           <div className="space-y-2">
-            <div className="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center mx-auto shadow-lg animate-bounce">
+            <div className={`w-16 h-16 ${theme.primary} rounded-2xl flex items-center justify-center mx-auto shadow-lg text-white animate-bounce`}>
               <KeyRound size={28} />
             </div>
-            <h2 className="text-xl font-black font-display tracking-tight text-white mt-3">TutorTrack Secure</h2>
-            <p className="text-xs text-slate-400">Tuition database locked. Enter your 4-digit security PIN to proceed.</p>
+            <h2 className={`text-xl font-black font-display tracking-tight ${theme.textTitle} mt-3`}>TutorTrack Secure</h2>
+            <p className={`text-xs ${theme.textMuted}`}>Tuition database locked. Enter your 4-digit security PIN to proceed.</p>
           </div>
 
           {/* Dots Indicator */}
@@ -519,15 +540,15 @@ export default function App() {
                 key={dotIndex} 
                 className={`w-4 h-4 rounded-full border-2 transition-all ${
                   pinEntry.length > dotIndex 
-                    ? 'bg-indigo-500 border-indigo-400 scale-110 shadow-indigo-500/50 shadow-md' 
-                    : 'bg-slate-700 border-slate-600'
+                    ? `${theme.primary} ${theme.borderAccent} scale-110 shadow-md` 
+                    : `${theme.bgCardElevated} ${theme.borderMain}`
                 }`}
               />
             ))}
           </div>
 
           {pinError && (
-            <p className="text-xs font-bold text-red-400 bg-red-500/10 py-1.5 px-3 rounded-lg border border-red-500/20">
+            <p className="text-xs font-bold text-rose-500 bg-rose-500/10 py-1.5 px-3 rounded-lg border border-rose-500/20">
               ⚠️ {pinError}
             </p>
           )}
@@ -539,7 +560,7 @@ export default function App() {
                 key={num}
                 type="button"
                 onClick={() => handleNumpadPress(num)}
-                className="w-16 h-16 bg-slate-700 hover:bg-slate-600 text-lg font-bold rounded-2xl flex items-center justify-center transition active:scale-95"
+                className={`w-16 h-16 ${theme.bgCardElevated} hover:${theme.bgCardHover} ${theme.textTitle} border ${theme.borderMain} text-lg font-bold rounded-2xl flex items-center justify-center transition active:scale-95`}
               >
                 {num}
               </button>
@@ -547,14 +568,14 @@ export default function App() {
             <button
               type="button"
               onClick={handleClearPinEntry}
-              className="w-16 h-16 bg-transparent text-slate-400 hover:text-white text-xs font-bold rounded-2xl flex items-center justify-center"
+              className={`w-16 h-16 bg-transparent ${theme.textMuted} hover:${theme.textTitle} text-xs font-bold rounded-2xl flex items-center justify-center`}
             >
               CLEAR
             </button>
             <button
               type="button"
               onClick={() => handleNumpadPress('0')}
-              className="w-16 h-16 bg-slate-700 hover:bg-slate-600 text-lg font-bold rounded-2xl flex items-center justify-center transition active:scale-95"
+              className={`w-16 h-16 ${theme.bgCardElevated} hover:${theme.bgCardHover} ${theme.textTitle} border ${theme.borderMain} text-lg font-bold rounded-2xl flex items-center justify-center transition active:scale-95`}
             >
               0
             </button>
@@ -564,13 +585,13 @@ export default function App() {
                 // Pin lock bypass safety hint
                 alert(`Pin Lock Bypass Hint: Your active pin code configured is: ${settings.pinCode || 'None setup yet'}`);
               }}
-              className="w-16 h-16 bg-transparent text-indigo-400 hover:text-indigo-300 text-[10px] font-bold rounded-2xl flex flex-col items-center justify-center leading-none"
+              className={`w-16 h-16 bg-transparent ${theme.textAccent} text-[10px] font-bold rounded-2xl flex flex-col items-center justify-center leading-none`}
             >
               <HelpCircle size={14} className="mb-1" /> BYPASS
             </button>
           </div>
 
-          <div className="text-[10px] text-slate-500">
+          <div className={`text-[10px] ${theme.textMuted}`}>
             * TutorTrack database remain safely isolated & encrypted locally.
           </div>
         </div>
@@ -580,24 +601,24 @@ export default function App() {
 
   // STANDARD APPLICATION WORKSPACE FRAMEWORK
   const ApplicationMainContent = () => (
-    <div className="flex-1 flex flex-col min-w-0 bg-slate-50 min-h-screen">
+    <div className={`flex-1 flex flex-col min-w-0 ${theme.bgMain} min-h-screen`}>
       
       {/* HEADER SECTION - SLEEK INTERFACE */}
-      <header className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-30 shadow-none h-16 shrink-0">
+      <header className={`sticky top-0 ${theme.bgHeader} border-b ${theme.borderMain} px-6 py-4 flex items-center justify-between z-30 h-16 shrink-0`}>
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setMobileMenuOpen(true)}
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 lg:hidden"
+            className={`p-1.5 hover:${theme.bgCardHover} rounded-lg ${theme.textMuted} hover:${theme.textTitle} lg:hidden`}
             id="mobile-nav-toggle-btn"
           >
             <Menu size={20} />
           </button>
           
           <div>
-            <h1 className="text-base font-bold text-slate-805 tracking-tight leading-none flex items-center gap-1.5 font-display" id="tab-title-header">
+            <h1 className={`text-base font-bold ${theme.textTitle} tracking-tight leading-none flex items-center gap-1.5 font-display`} id="tab-title-header">
               {currentTabTitle()}
             </h1>
-            <p className="text-[9px] text-slate-400 font-mono tracking-wider mt-1 uppercase" id="current-hour-clock">
+            <p className={`text-[9px] ${theme.textMuted} font-mono tracking-wider mt-1 uppercase`} id="current-hour-clock">
               Hour: {currentTimeState || '14:58:32 PM'}
             </p>
           </div>
@@ -610,18 +631,18 @@ export default function App() {
             {currentUser ? (
               <>
                 <div className="text-right">
-                  <p className="text-xs font-bold text-slate-900">{currentUser.displayName || currentUser.email || 'Dr. Sarah Mitchell'}</p>
-                  <p className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-tighter">● CLOUD SYNC ACTIVE</p>
+                  <p className={`text-xs font-bold ${theme.textTitle}`}>{currentUser.displayName || currentUser.email || 'Dr. Sarah Mitchell'}</p>
+                  <p className="text-[9px] text-emerald-500 font-extrabold uppercase tracking-tighter">● CLOUD SYNC ACTIVE</p>
                 </div>
                 {currentUser.photoURL ? (
                   <img 
                     src={currentUser.photoURL} 
                     alt="avatar" 
                     referrerPolicy="no-referrer"
-                    className="w-9 h-9 rounded-full border border-slate-200 shadow-sm object-cover"
+                    className={`w-9 h-9 rounded-full border ${theme.borderMain} shadow-sm object-cover`}
                   />
                 ) : (
-                  <div className="w-9 h-9 rounded-full bg-indigo-100 border border-slate-200 shadow-sm flex items-center justify-center text-[10px] font-extrabold text-indigo-700">
+                  <div className={`w-9 h-9 rounded-full ${theme.bgAccent} border ${theme.borderMain} shadow-sm flex items-center justify-center text-[10px] font-extrabold ${theme.textAccent}`}>
                     {currentUser.displayName ? currentUser.displayName.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : 'SM'}
                   </div>
                 )}
@@ -633,7 +654,7 @@ export default function App() {
                       alert(e?.message || 'Error logging out');
                     }
                   }}
-                  className="p-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-[10px] font-bold text-slate-600 rounded-lg border transition-all"
+                  className={`p-1 px-2.5 ${theme.bgCardElevated} hover:${theme.bgCardHover} text-[10px] font-bold ${theme.textMain} rounded-lg border ${theme.borderMain} transition-all`}
                   title="Sign Out from Cloud"
                 >
                   Sign Out
@@ -642,10 +663,10 @@ export default function App() {
             ) : (
               <>
                 <div className="text-right">
-                  <p className="text-xs font-bold text-slate-900">Guest Tutor</p>
-                  <p className="text-[9px] text-amber-600 font-extrabold uppercase tracking-tighter">● OFFLINE LOCAL MODE</p>
+                  <p className={`text-xs font-bold ${theme.textTitle}`}>Guest Tutor</p>
+                  <p className="text-[9px] text-amber-500 font-extrabold uppercase tracking-tighter">● OFFLINE LOCAL MODE</p>
                 </div>
-                <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 shadow-sm flex items-center justify-center text-[10px] font-extrabold text-slate-500 animate-pulse">
+                <div className={`w-9 h-9 rounded-full ${theme.bgCardElevated} border ${theme.borderMain} shadow-sm flex items-center justify-center text-[10px] font-extrabold ${theme.textMuted} animate-pulse`}>
                   GT
                 </div>
                 <button
@@ -653,10 +674,10 @@ export default function App() {
                     try {
                       await signInWithGoogle(settings.firebaseConfig);
                     } catch (e: any) {
-                      alert(`Login closed: ${e?.message || String(e)}`);
+                      alert(`Login notice: ${e?.message || String(e)}`);
                     }
                   }}
-                  className="p-1 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-lg transition-all"
+                  className={`p-1 px-2.5 ${theme.btnPrimary} text-[10px] font-bold rounded-lg transition-all`}
                   title="Sign In with Google"
                 >
                   Sign In
@@ -665,12 +686,12 @@ export default function App() {
             )}
           </div>
 
-          <div className="h-8 w-[1px] bg-slate-200 hidden sm:block"></div>
+          <div className={`h-8 w-[1px] ${theme.borderMain} hidden sm:block`}></div>
 
           {/* Emulator Frame Toggler */}
           <button
             onClick={() => setDevicePreviewMode(!devicePreviewMode)}
-            className="p-1.5 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-500 transition shadow-none flex items-center gap-1.5"
+            className={`p-1.5 border ${theme.borderMain} rounded-xl hover:${theme.bgCardHover} ${theme.textMuted} hover:${theme.textTitle} transition shadow-none flex items-center gap-1.5`}
             title="Toggle compact mobile mockup emulator"
             id="viewport-toggle-btn"
           >
@@ -680,19 +701,19 @@ export default function App() {
             </span>
           </button>
 
-                    {/* Notification Button */}
+          {/* Notification Button */}
           <div className="relative">
             <button 
               onClick={() => {
                 setShowNotificationCenter(!showNotificationCenter);
                 setShowSyncCenter(false);
               }}
-              className="p-1.5 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-50 transition shadow-none"
+              className={`p-1.5 border ${theme.borderMain} ${theme.textMuted} hover:${theme.textTitle} rounded-xl hover:${theme.bgCardHover} transition shadow-none`}
               id="notifications-indicator-bell"
             >
               <Bell size={14} />
               {unreadCount > 0 && (
-                <div className="absolute -top-1 -right-1 bg-rose-600 text-white font-extrabold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                <div className="absolute -top-1 -right-1 bg-rose-600 text-white font-extrabold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 animate-pulse">
                   {unreadCount}
                 </div>
               )}
@@ -700,18 +721,18 @@ export default function App() {
  
             {/* Notification drop-down panel dropdown list */}
             {showNotificationCenter && (
-              <div className="absolute right-0 mt-3 bg-white border border-slate-200 w-80 rounded-2xl shadow-xl z-50 p-4 space-y-3 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between border-b border-slate-400 pb-2">
-                  <span className="text-xs font-extrabold text-slate-805 uppercase tracking-wider">Alert Center ({unreadCount})</span>
+              <div className={`absolute right-0 mt-3 ${theme.bgCard} border ${theme.borderMain} w-80 rounded-2xl shadow-xl z-50 p-4 space-y-3 animate-in fade-in duration-150`}>
+                <div className={`flex items-center justify-between border-b ${theme.borderMuted} pb-2`}>
+                  <span className={`text-xs font-extrabold ${theme.textTitle} uppercase tracking-wider`}>Alert Center ({unreadCount})</span>
                   <div className="flex gap-2">
-                    <button onClick={clearNotifications} className="text-[9px] font-bold text-rose-600 hover:underline">Clear logs</button>
-                    <button onClick={() => setShowNotificationCenter(false)} className="text-[9px] font-bold text-slate-600 hover:underline">Close</button>
+                    <button onClick={clearNotifications} className="text-[9px] font-bold text-rose-500 hover:underline">Clear logs</button>
+                    <button onClick={() => setShowNotificationCenter(false)} className={`text-[9px] font-bold ${theme.textMuted} hover:${theme.textTitle} hover:underline`}>Close</button>
                   </div>
                 </div>
  
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                   {notifications.length === 0 ? (
-                    <div className="text-center py-6 text-slate-400 text-xs">
+                    <div className={`text-center py-6 ${theme.textMuted} text-xs`}>
                       No new tutor notifications recorded.
                     </div>
                   ) : (
@@ -720,16 +741,18 @@ export default function App() {
                         key={n.id} 
                         onClick={() => markNotificationRead(n.id)}
                         className={`p-2.5 rounded-xl border text-xs cursor-pointer transition ${
-                          n.read ? 'bg-slate-50 border-slate-100 opacity-70' : 'bg-indigo-50/50 border-indigo-100'
+                          n.read 
+                            ? `${theme.bgCardElevated} ${theme.borderMuted} opacity-70` 
+                            : `${theme.bgAccent} ${theme.borderAccent}`
                         }`}
                       >
-                        <div className="flex justify-between font-bold text-slate-800 text-[11px]">
+                        <div className={`flex justify-between font-bold ${theme.textTitle} text-[11px]`}>
                           <span>{n.title}</span>
-                          <span className="text-[9px] font-medium text-slate-400">
+                          <span className={`text-[9px] font-medium ${theme.textMuted}`}>
                             {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-500 mt-1">{n.body}</p>
+                        <p className={`text-[10px] ${theme.textMuted} mt-1`}>{n.body}</p>
                       </div>
                     ))
                   )}
@@ -745,15 +768,15 @@ export default function App() {
                 setShowSyncCenter(!showSyncCenter);
                 setShowNotificationCenter(false);
               }}
-              className={`p-1.5 border rounded-xl hover:bg-slate-50 transition shadow-none relative ${
-                showSyncCenter ? 'bg-amber-50 border-amber-200 text-amber-700' : 'border-slate-200 text-slate-500 hover:text-slate-800'
+              className={`p-1.5 border rounded-xl hover:${theme.bgCardHover} transition shadow-none relative ${
+                showSyncCenter ? `${theme.bgAccent} ${theme.borderAccent} ${theme.textAccent}` : `${theme.borderMain} ${theme.textMuted} hover:${theme.textTitle}`
               }`}
               id="firebase-sync-trigger-btn"
               title="Local Pending Database Syncs"
             >
               <CloudLightning size={14} className={settings.isSyncing ? "animate-bounce" : ""} />
               {totalPendingSyncs > 0 && (
-                <div className="absolute -top-1 -right-1 bg-amber-600 text-white font-extrabold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                <div className="absolute -top-1 -right-1 bg-amber-500 text-white font-extrabold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 animate-pulse">
                   {totalPendingSyncs}
                 </div>
               )}
@@ -762,21 +785,21 @@ export default function App() {
             {/* Sync dropdown panel containing action wise pending changes & manual triggers */}
             {showSyncCenter && (
               <div 
-                className="absolute right-0 mt-3 bg-white border border-slate-200 w-85 sm:w-96 rounded-2xl shadow-xl z-50 p-4 space-y-3.5 animate-in fade-in duration-150"
+                className={`absolute right-0 mt-3 ${theme.bgCard} border ${theme.borderMain} w-85 sm:w-96 rounded-2xl shadow-xl z-50 p-4 space-y-3.5 animate-in fade-in duration-150`}
                 id="sync-logs-popup-container"
               >
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div className={`flex items-center justify-between border-b ${theme.borderMuted} pb-2.5`}>
                   <div className="flex items-center gap-1.5">
-                    <Cloud className="text-slate-500" size={15} />
-                    <span className="text-xs font-extrabold text-slate-850 uppercase tracking-wider">Sync Control Queue</span>
+                    <Cloud className={theme.textMuted} size={15} />
+                    <span className={`text-xs font-extrabold ${theme.textTitle} uppercase tracking-wider`}>Sync Control Queue</span>
                   </div>
-                  <div className="flex gap-2">
-                    <span className="text-[10px] font-black uppercase py-0.5 px-2 bg-amber-100 text-amber-850 rounded-full">
+                  <div className="flex gap-2 items-center">
+                    <span className="text-[10px] font-black uppercase py-0.5 px-2 bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full border border-amber-500/20">
                       {totalPendingSyncs} Pending
                     </span>
                     <button 
                       onClick={() => setShowSyncCenter(false)} 
-                      className="text-[9px] font-bold text-slate-500 hover:underline"
+                      className={`text-[9px] font-bold ${theme.textMuted} hover:${theme.textTitle} hover:underline`}
                     >
                       Close
                     </button>
@@ -785,50 +808,50 @@ export default function App() {
 
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {unsyncedChanges.length === 0 ? (
-                    <div className="text-center py-8 text-slate-400 space-y-2">
-                      <div className="mx-auto w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600 animate-bounce">
+                    <div className={`text-center py-8 ${theme.textMuted} space-y-2`}>
+                      <div className="mx-auto w-10 h-10 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-500 animate-bounce">
                         <CheckCircle size={20} />
                       </div>
-                      <p className="text-xs font-bold text-slate-600">Sync Pipeline Up-to-Date!</p>
-                      <p className="text-[10px] text-slate-500">All local changes are fully persistent on Cloud Firestore.</p>
+                      <p className={`text-xs font-bold ${theme.textTitle}`}>Sync Pipeline Up-to-Date!</p>
+                      <p className={`text-[10px] ${theme.textMuted}`}>All local changes are fully persistent on Cloud Firestore.</p>
                     </div>
                   ) : (
                     <div className="space-y-2 text-xs">
-                      <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider pb-1">Un-synchronized Action Logs</p>
+                      <p className={`text-[10px] font-semibold ${theme.textMuted} uppercase tracking-wider pb-1`}>Un-synchronized Action Logs</p>
                       {unsyncedChanges.map((item) => {
-                        let badgeBg = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+                        let badgeBg = 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
                         let actionLabel = 'Create';
                         if (item.type === 'update') {
-                          badgeBg = 'bg-blue-50 text-blue-700 border-blue-100';
+                          badgeBg = 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
                           actionLabel = 'Update';
                         } else if (item.type === 'delete') {
-                          badgeBg = 'bg-rose-50 text-rose-700 border-rose-100';
+                          badgeBg = 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20';
                           actionLabel = 'Delete';
                         }
 
                         return (
                           <div 
                             key={`${item.collectionName}-${item.type}-${item.id}`}
-                            className="bg-slate-50/60 hover:bg-slate-50 border border-slate-150 p-2.5 rounded-xl flex items-center justify-between gap-3 transition"
+                            className={`${theme.bgCardElevated} hover:${theme.bgCardHover} border ${theme.borderMuted} p-2.5 rounded-xl flex items-center justify-between gap-3 transition`}
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${badgeBg}`}>
                                   {actionLabel}
                                 </span>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                <span className={`text-[10px] font-bold ${theme.textMuted} uppercase tracking-wider`}>
                                   {item.collectionName}
                                 </span>
                               </div>
-                              <h5 className="font-extrabold text-slate-800 text-[11px] mt-1 truncate">{item.label}</h5>
-                              <p className="text-[10px] text-slate-500 leading-tight mt-0.5 truncate">{item.sublabel}</p>
+                              <h5 className={`font-extrabold ${theme.textTitle} text-[11px] mt-1 truncate`}>{item.label}</h5>
+                              <p className={`text-[10px] ${theme.textMuted} leading-tight mt-0.5 truncate`}>{item.sublabel}</p>
                             </div>
 
                             <button
                               onClick={() => {
                                 undoLocalChange(item.collectionName, item.id, item.type);
                               }}
-                              className="py-1.5 px-2 bg-white hover:bg-rose-50 hover:text-rose-600 border border-slate-200 hover:border-rose-200 text-slate-500 font-bold text-[9px] uppercase tracking-wider rounded-lg transition shrink-0 flex items-center gap-1 shadow-sm"
+                              className={`py-1.5 px-2 ${theme.bgCard} hover:bg-rose-500/10 hover:text-rose-500 border ${theme.borderMain} hover:border-rose-500/30 ${theme.textMuted} font-bold text-[9px] uppercase tracking-wider rounded-lg transition shrink-0 flex items-center gap-1 shadow-sm`}
                               title="Revert change locally"
                             >
                               <RotateCcw size={9} />
@@ -841,21 +864,68 @@ export default function App() {
                   )}
                 </div>
 
-                <div className="pt-2 border-t border-slate-100">
-                  <button
-                    disabled={settings.isSyncing || totalPendingSyncs === 0}
-                    onClick={async () => {
-                      try {
-                        await triggerManualSync();
-                      } catch (e: any) {
-                        alert(`Replication failure: ${e?.message || String(e)}`);
-                      }
-                    }}
-                    className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow flex items-center justify-center gap-2 select-none disabled:opacity-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
-                  >
-                    <CloudLightning size={12} className={settings.isSyncing ? "animate-spin" : ""} />
-                    {settings.isSyncing ? 'Synchronizing Cloud...' : 'Sync Pending Items Now'}
-                  </button>
+                <div className={`pt-2 border-t ${theme.borderMuted} space-y-2`}>
+                  {syncProgress.isSyncing && (
+                    <div className="space-y-1.5 p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <div className="flex justify-between items-center text-[10px] font-bold">
+                        <span className={theme.textTitle}>{syncProgress.stage || 'Replicating...'}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={theme.textAccent}>{syncProgress.percent}%</span>
+                          <button
+                            type="button"
+                            onClick={stopSync}
+                            className="py-0.5 px-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-600 dark:text-rose-400 rounded text-[9px] font-extrabold uppercase tracking-wider transition flex items-center gap-1"
+                            title="Halt replication immediately"
+                          >
+                            <StopCircle size={10} />
+                            Stop
+                          </button>
+                        </div>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full ${theme.primary} transition-all duration-200`} 
+                          style={{ width: `${Math.max(5, syncProgress.percent)}%` }} 
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {settings.isSyncing || syncProgress.isSyncing ? (
+                    <div className="flex gap-1.5">
+                      <button
+                        disabled
+                        className={`flex-1 py-2 px-3 ${theme.btnPrimary} text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow flex items-center justify-center gap-2 opacity-90 cursor-wait`}
+                      >
+                        <CloudLightning size={12} className="animate-spin" />
+                        Replicating ({syncProgress.percent}%)...
+                      </button>
+                      <button
+                        type="button"
+                        onClick={stopSync}
+                        className="py-2 px-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow flex items-center justify-center gap-1.5 shrink-0"
+                        title="Cancel replication"
+                      >
+                        <StopCircle size={13} />
+                        Stop
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      disabled={totalPendingSyncs === 0}
+                      onClick={async () => {
+                        try {
+                          await triggerManualSync();
+                        } catch (e: any) {
+                          alert(`Replication failure: ${e?.message || String(e)}`);
+                        }
+                      }}
+                      className={`w-full py-2 px-3 ${theme.btnPrimary} text-white font-extrabold text-[11px] uppercase tracking-wider rounded-xl transition shadow flex items-center justify-center gap-2 select-none disabled:opacity-50 disabled:shadow-none`}
+                    >
+                      <CloudLightning size={12} />
+                      Sync Pending Items Now
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -865,7 +935,7 @@ export default function App() {
           {settings.pinLockEnabled && (
             <button 
               onClick={() => setIsLocked(true)}
-              className="p-1.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-slate-800 transition"
+              className={`p-1.5 border ${theme.borderMain} hover:${theme.bgCardHover} rounded-xl ${theme.textMuted} hover:${theme.textTitle} transition`}
               title="Lock database dashboard"
               id="portal-lock-btn"
             >
@@ -885,22 +955,22 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans overflow-x-hidden text-slate-800">
+    <div className={`min-h-screen ${theme.bgMain} flex font-sans overflow-x-hidden`}>
       
       {/* MOBILE NAV CONTAINER SLIDERS - SLEEK INTERFACE */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white text-slate-800 p-6 justify-between animate-in slide-in-from-left duration-250 border-r border-slate-200">
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+          <div className={`relative flex-1 flex flex-col max-w-xs w-full ${theme.bgSidebar} ${theme.textMain} p-6 justify-between animate-in slide-in-from-left duration-250 border-r ${theme.borderMain}`}>
             <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className={`flex items-center justify-between border-b ${theme.borderMuted} pb-4`}>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow shadow-indigo-100">
+                  <div className={`w-8 h-8 ${theme.primary} rounded-lg flex items-center justify-center text-white font-bold text-xs shadow`}>
                     TT
                   </div>
-                  <span className="text-base font-bold font-display tracking-tight text-slate-800">TutorTrack <span className="text-indigo-600 text-xs ml-0.5 font-medium">Pro</span></span>
+                  <span className={`text-base font-bold font-display tracking-tight ${theme.textTitle}`}>TutorTrack <span className={`${theme.textAccent} text-xs ml-0.5 font-medium`}>Pro</span></span>
                 </div>
-                <button onClick={() => setMobileMenuOpen(false)} className="text-slate-400 p-1 hover:text-slate-600">
+                <button onClick={() => setMobileMenuOpen(false)} className={`${theme.textMuted} p-1 hover:${theme.textTitle}`}>
                   <X size={18} />
                 </button>
               </div>
@@ -918,17 +988,17 @@ export default function App() {
                       }}
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition ${
                         isSelected 
-                          ? 'bg-indigo-50 text-indigo-700 font-semibold' 
-                          : 'text-slate-600 hover:bg-slate-50'
+                          ? `${theme.bgAccent} ${theme.textAccent} font-semibold` 
+                          : `${theme.textMain} hover:${theme.bgCardHover}`
                       }`}
                     >
                       <span className="flex items-center gap-3">
-                        <IconComponent size={15} className={isSelected ? 'text-indigo-600' : 'text-slate-400'} />
+                        <IconComponent size={15} className={isSelected ? theme.textAccent : theme.textMuted} />
                         {item.label}
                       </span>
                       {item.badge !== undefined && (
                         <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                          isSelected ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-550'
+                          isSelected ? theme.badgeAccent : `${theme.bgCardElevated} ${theme.textMuted}`
                         }`}>
                           {item.badge}
                         </span>
@@ -939,42 +1009,42 @@ export default function App() {
               </div>
             </div>
 
-            <div className="space-y-4 pt-6 mt-auto border-t border-slate-100">
+            <div className={`space-y-4 pt-6 mt-auto border-t ${theme.borderMuted}`}>
               {currentUser ? (
-                <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border">
+                <div className={`flex items-center justify-between ${theme.bgCardElevated} p-2.5 rounded-xl border ${theme.borderMain}`}>
                   <div className="flex items-center gap-2 min-w-0">
                     {currentUser.photoURL ? (
-                      <img src={currentUser.photoURL} alt="avatar" className="w-8 h-8 rounded-full border shrink-0" referrerPolicy="no-referrer" />
+                      <img src={currentUser.photoURL} alt="avatar" className={`w-8 h-8 rounded-full border ${theme.borderMain} shrink-0`} referrerPolicy="no-referrer" />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs shrink-0 font-display">
+                      <div className={`w-8 h-8 rounded-full ${theme.bgAccent} ${theme.textAccent} flex items-center justify-center font-black text-xs shrink-0 font-display`}>
                         {currentUser.displayName ? currentUser.displayName[0] : 'U'}
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-[11px] font-extrabold text-slate-800 truncate leading-tight">{currentUser.displayName || currentUser.email}</p>
-                      <p className="text-[9px] text-emerald-600 font-bold uppercase tracking-wide">Sync Connected</p>
+                      <p className={`text-[11px] font-extrabold ${theme.textTitle} truncate leading-tight`}>{currentUser.displayName || currentUser.email}</p>
+                      <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-wide">Sync Connected</p>
                     </div>
                   </div>
                   <button
                     onClick={() => logOutFromFirebase(settings.firebaseConfig)}
-                    className="p-1 px-1.5 bg-slate-200 hover:bg-slate-300 text-[9px] font-bold text-slate-650 text-slate-700 rounded border shrink-0"
+                    className={`p-1 px-1.5 ${theme.bgCard} hover:${theme.bgCardHover} text-[9px] font-bold ${theme.textMain} rounded border ${theme.borderMain} shrink-0`}
                   >
                     Out
                   </button>
                 </div>
               ) : (
-                <div className="bg-slate-50 p-3 rounded-xl border text-center space-y-2">
-                  <p className="text-[10px] text-slate-500 font-medium leading-none">Running in Offline sandbox mode</p>
+                <div className={`${theme.bgCardElevated} p-3 rounded-xl border ${theme.borderMain} text-center space-y-2`}>
+                  <p className={`text-[10px] ${theme.textMuted} font-medium leading-none`}>Running in Offline sandbox mode</p>
                   <button
                     onClick={() => signInWithGoogle(settings.firebaseConfig)}
-                    className="w-full py-1.5 bg-indigo-650 bg-indigo-600 hover:bg-indigo-750 text-white rounded-lg text-[9px] font-extrabold transition-all"
+                    className={`w-full py-1.5 ${theme.btnPrimary} text-white rounded-lg text-[9px] font-extrabold transition-all`}
                   >
                     Sync to Google Cloud
                   </button>
                 </div>
               )}
 
-              <div className="text-[10px] text-slate-400 font-medium leading-none">
+              <div className={`text-[10px] ${theme.textMuted} font-medium leading-none`}>
                 Personal Tuition Management System
               </div>
             </div>
@@ -983,16 +1053,16 @@ export default function App() {
       )}
 
       {/* DESKTOP SIDEBAR VIEW - SLEEK INTERFACE */}
-      <aside className="hidden lg:flex w-64 bg-white text-slate-805 p-5 flex-col justify-between shrink-0 border-r border-slate-200">
+      <aside className={`hidden lg:flex w-64 ${theme.bgSidebar} ${theme.textMain} p-5 flex-col justify-between shrink-0 border-r ${theme.borderMain}`}>
         <div className="space-y-6">
           
           {/* Logo & Banner - Sleek Interface style */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+            <div className={`w-10 h-10 ${theme.primary} rounded-xl flex items-center justify-center text-white shadow-lg ${theme.accentShadow}`}>
               <NotebookText size={20} className="stroke-[2.5]" />
             </div>
             <div>
-              <span className="text-base font-bold font-display tracking-tight text-slate-805 block">TutorTrack <span className="text-indigo-605 font-bold text-[10px] uppercase tracking-wider ml-0.5">Pro</span></span>
+              <span className={`text-base font-bold font-display tracking-tight ${theme.textTitle} block`}>TutorTrack <span className={`${theme.textAccent} font-bold text-[10px] uppercase tracking-wider ml-0.5`}>Pro</span></span>
               <span className="text-[9px] text-slate-400 font-bold tracking-widest block uppercase">Tuition Log OS</span>
             </div>
           </div>
@@ -1010,18 +1080,18 @@ export default function App() {
                   onClick={() => setActiveTab(item.id as any)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all relative group ${
                     isSelected 
-                      ? 'bg-indigo-50 text-indigo-700 font-semibold' 
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
+                      ? `${theme.bgAccent} ${theme.textAccent} font-semibold` 
+                      : `text-slate-600 hover:${theme.bgCardHover} hover:text-slate-900 dark:text-slate-400 dark:hover:text-white font-medium`
                   }`}
                 >
                   <span className="flex items-center gap-3">
-                    <IconComponent size={15} className={`transition ${isSelected ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-600'}`} />
+                    <IconComponent size={15} className={`transition ${isSelected ? theme.textAccent : 'text-slate-400 group-hover:' + theme.textAccent}`} />
                     {item.label}
                   </span>
                   
                   {item.badge !== undefined && (
                     <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
-                      isSelected ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
+                      isSelected ? theme.badgeAccent : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                     }`}>
                       {item.badge}
                     </span>
@@ -1034,19 +1104,19 @@ export default function App() {
         </div>
 
         {/* Footer offline storage indicator block exactly matching design HTML */}
-        <div className="space-y-4 border-t border-slate-100 pt-5">
+        <div className="space-y-4 border-t border-slate-100 dark:border-slate-800 pt-5">
           
-          <div className="p-4 bg-slate-900 rounded-xl text-white">
-            <p className="text-[10px] font-bold text-indigo-400 mb-1 tracking-wider uppercase">Offline Persistence</p>
+          <div className={`p-4 ${darkMode ? 'bg-slate-850 border border-slate-800/80' : 'bg-slate-900'} rounded-xl text-white`}>
+            <p className={`text-[10px] font-bold ${darkMode ? theme.textAccent : 'text-indigo-400'} mb-1 tracking-wider uppercase`}>Offline Persistence</p>
             <div className="w-full bg-slate-700 h-1 rounded-full mb-2">
-              <div className="bg-indigo-500 h-full w-[100%] rounded-full"></div>
+              <div className={`${theme.primary} h-full w-[100%] rounded-full`}></div>
             </div>
             <p className="text-[10px] opacity-70 text-slate-300">Local Engine: {students.length + schedules.length + attendance.length + payments.length} cached records</p>
           </div>
 
           <div className="space-y-1.5">
             {currentUser && (
-              <div className="bg-emerald-50/50 border border-emerald-100 p-2 text-[10px] text-emerald-800 rounded-xl flex items-center gap-2 mb-2 font-medium">
+              <div className="bg-emerald-50/50 border border-emerald-100 p-2 text-[10px] text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/30 dark:text-emerald-300 rounded-xl flex items-center gap-2 mb-2 font-medium">
                 {currentUser.photoURL ? (
                   <img src={currentUser.photoURL} alt="a" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
                 ) : (
@@ -1060,7 +1130,7 @@ export default function App() {
             )}
 
             <div className="flex items-center gap-2 text-xs">
-              <div className={`w-1.5 h-1.5 rounded-full ${currentUser ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+              <div className={`w-1.5 h-1.5 rounded-full ${currentUser ? 'bg-emerald-500 animate-pulse' : 'bg-slate-350'}`} />
               <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider">
                 {currentUser ? 'Cloud Backup Linked' : 'Offline Sandbox'}
               </span>
@@ -1070,7 +1140,7 @@ export default function App() {
               {settings.pinLockEnabled ? (
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               ) : (
-                <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-350" />
               )}
               <span className="text-[9px] text-slate-400 uppercase font-black tracking-wider">
                 {settings.pinLockEnabled ? 'PIN lock active' : 'no pin lock set'}
@@ -1083,7 +1153,7 @@ export default function App() {
                   localStorage.removeItem('tutortrack_guest_sandbox');
                   setProceedAsOffline(false);
                 }}
-                className="text-[9.5px] text-indigo-650 hover:text-indigo-750 text-indigo-600 font-extrabold uppercase block select-none"
+                className={`text-[9.5px] ${theme.textAccent} hover:opacity-80 font-extrabold uppercase block select-none`}
               >
                 🔐 Open Sign In Portal
               </button>

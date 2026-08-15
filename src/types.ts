@@ -69,8 +69,39 @@ export interface DeletedRecord {
   snapshot?: any;
 }
 
+export interface SyncLogEntry {
+  id: string;
+  timestamp: string;
+  stage: string;
+  type: 'info' | 'success' | 'warn' | 'error';
+  message: string;
+  details?: string;
+}
+
+export interface SyncProgressState {
+  isSyncing: boolean;
+  stage: string;
+  percent: number;
+  currentCount: number;
+  totalCount: number;
+  logs: SyncLogEntry[];
+  lastError?: string;
+  lastSuccessMessage?: string;
+  lastSyncDurationMs?: number;
+  firebaseResponse?: {
+    projectId?: string;
+    userId?: string;
+    syncedCollections?: { [key: string]: number };
+    totalSynced?: number;
+    deletedCount?: number;
+    latencyMs?: number;
+    rawFeedback?: string;
+  };
+}
+
 export interface AppSettings {
   darkMode: boolean;
+  themeColor?: 'indigo' | 'emerald' | 'rose' | 'amber' | 'violet' | 'blue';
   pinLockEnabled: boolean;
   pinCode: string;
   biometricLockEnabled: boolean;

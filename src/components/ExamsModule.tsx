@@ -10,8 +10,10 @@ import {
   LineChart, Line, Legend, PieChart, Pie, Cell 
 } from 'recharts';
 import { formatDate, formatTime } from '../formatUtils';
+import { useTheme } from '../theme';
 
 export default function ExamsModule() {
+  const { theme, darkMode } = useTheme();
   const { 
     students, schedules, examSchedules, examRecords, 
     addExamSchedule, updateExamSchedule, deleteExamSchedule,
@@ -465,68 +467,68 @@ export default function ExamsModule() {
   };
 
   return (
-    <div className="space-y-6 font-sans text-slate-800 animate-in fade-in duration-200" id="exams-module-root">
+    <div className={`space-y-6 font-sans ${theme.textMain} animate-in fade-in duration-200`} id="exams-module-root">
       
       {/* KPI METRIC CARDS HEADER */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" id="exams-kpi-row">
         
         {/* KPI 1: Upcoming Exams */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition duration-200 flex items-center gap-4">
-          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
+        <div className={`${theme.bgCard} border ${theme.borderMain} rounded-3xl p-5 shadow-sm hover:shadow-md transition duration-200 flex items-center gap-4`}>
+          <div className={`w-12 h-12 ${theme.bgAccent} ${theme.textAccent} rounded-2xl flex items-center justify-center shrink-0`}>
             <CalendarDays size={22} className="stroke-[2.2]" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Upcoming Tests</p>
-            <h4 className="text-2xl font-black text-slate-900 leading-none mt-1">{kpis.upcomingCount}</h4>
+            <p className={`text-[10px] uppercase font-bold tracking-wider ${theme.textMuted}`}>Upcoming Tests</p>
+            <h4 className={`text-2xl font-black ${theme.textTitle} leading-none mt-1`}>{kpis.upcomingCount}</h4>
           </div>
         </div>
 
         {/* KPI 2: Completed Exams */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition duration-200 flex items-center gap-4">
-          <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0">
+        <div className={`${theme.bgCard} border ${theme.borderMain} rounded-3xl p-5 shadow-sm hover:shadow-md transition duration-200 flex items-center gap-4`}>
+          <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center shrink-0">
             <CheckCircle2 size={22} className="stroke-[2.2]" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Total Graded</p>
-            <h4 className="text-2xl font-black text-slate-900 leading-none mt-1">{kpis.completedCount}</h4>
+            <p className={`text-[10px] uppercase font-bold tracking-wider ${theme.textMuted}`}>Total Graded</p>
+            <h4 className={`text-2xl font-black ${theme.textTitle} leading-none mt-1`}>{kpis.completedCount}</h4>
           </div>
         </div>
 
         {/* KPI 3: Avg Score */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition duration-200 flex items-center gap-4">
-          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shrink-0">
+        <div className={`${theme.bgCard} border ${theme.borderMain} rounded-3xl p-5 shadow-sm hover:shadow-md transition duration-200 flex items-center gap-4`}>
+          <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center shrink-0">
             <TrendingUp size={22} className="stroke-[2.2]" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Average Score</p>
-            <h4 className="text-2xl font-black text-slate-900 leading-none mt-1">{kpis.averageScore}%</h4>
+            <p className={`text-[10px] uppercase font-bold tracking-wider ${theme.textMuted}`}>Average Score</p>
+            <h4 className={`text-2xl font-black ${theme.textTitle} leading-none mt-1`}>{kpis.averageScore}%</h4>
           </div>
         </div>
 
         {/* KPI 4: Pass Rate */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md transition duration-200 flex items-center gap-4">
-          <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center shrink-0">
+        <div className={`${theme.bgCard} border ${theme.borderMain} rounded-3xl p-5 shadow-sm hover:shadow-md transition duration-200 flex items-center gap-4`}>
+          <div className="w-12 h-12 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-2xl flex items-center justify-center shrink-0">
             <Award size={22} className="stroke-[2.2]" />
           </div>
           <div>
-            <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Pass Rate</p>
-            <h4 className="text-2xl font-black text-slate-900 leading-none mt-1">{kpis.passRate}%</h4>
+            <p className={`text-[10px] uppercase font-bold tracking-wider ${theme.textMuted}`}>Pass Rate</p>
+            <h4 className={`text-2xl font-black ${theme.textTitle} leading-none mt-1`}>{kpis.passRate}%</h4>
           </div>
         </div>
 
       </div>
 
       {/* FILTER CONTROLS & TAB TOGGLES */}
-      <div className="bg-white border border-slate-200 p-4 rounded-3xl shadow-sm space-y-4 lg:space-y-0 lg:flex lg:items-center lg:justify-between" id="exams-toolbar-container">
+      <div className={`${theme.bgCard} border ${theme.borderMain} p-4 rounded-3xl shadow-sm space-y-4 lg:space-y-0 lg:flex lg:items-center lg:justify-between`} id="exams-toolbar-container">
         
         {/* Toggle selectors */}
-        <div className="flex gap-1.5 bg-slate-100 p-1 rounded-2xl overflow-x-auto scrollbar-none max-w-full shrink-0 flex-nowrap w-full sm:w-fit" id="exams-tabs">
+        <div className={`flex gap-1.5 ${theme.bgCardElevated} p-1 rounded-2xl overflow-x-auto scrollbar-none max-w-full shrink-0 flex-nowrap w-full sm:w-fit`} id="exams-tabs">
           <button
             onClick={() => setActiveTab('planner')}
             className={`py-2 px-4 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
               activeTab === 'planner'
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-slate-600 hover:bg-slate-200/50'
+                ? `${theme.bgCard} ${theme.textAccent} shadow-sm`
+                : `${theme.textMain} hover:${theme.bgCardHover}`
             }`}
           >
             <ListTodo size={14} />
@@ -536,8 +538,8 @@ export default function ExamsModule() {
             onClick={() => setActiveTab('gradebook')}
             className={`py-2 px-4 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
               activeTab === 'gradebook'
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-slate-600 hover:bg-slate-200/50'
+                ? `${theme.bgCard} ${theme.textAccent} shadow-sm`
+                : `${theme.textMain} hover:${theme.bgCardHover}`
             }`}
           >
             <GraduationCap size={14} />
@@ -547,8 +549,8 @@ export default function ExamsModule() {
             onClick={() => setActiveTab('analytics')}
             className={`py-2 px-4 rounded-xl text-xs font-bold transition flex items-center gap-2 shrink-0 ${
               activeTab === 'analytics'
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-slate-600 hover:bg-slate-200/50'
+                ? `${theme.bgCard} ${theme.textAccent} shadow-sm`
+                : `${theme.textMain} hover:${theme.bgCardHover}`
             }`}
           >
             <BarChart3 size={14} />
@@ -561,13 +563,13 @@ export default function ExamsModule() {
           
           {/* Search bar */}
           <div className="relative min-w-[180px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${theme.textMuted}`} size={14} />
             <input
               type="text"
               placeholder="Search subject, topic..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white outline-none"
+              className={`w-full pl-9 pr-3 py-2 ${theme.bgInput} border ${theme.borderMain} rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none`}
             />
           </div>
 
@@ -575,11 +577,11 @@ export default function ExamsModule() {
           <select
             value={selectedStudentFilter}
             onChange={(e) => setSelectedStudentFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none"
+            className={`px-3 py-2 ${theme.bgInput} border ${theme.borderMain} rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none`}
           >
-            <option value="All">All Pupils</option>
+            <option value="All" className={`${theme.bgCard} ${theme.textMain}`}>All Pupils</option>
             {students.map(s => (
-              <option key={s.id} value={s.id}>{s.name} ({s.class})</option>
+              <option key={s.id} value={s.id} className={`${theme.bgCard} ${theme.textMain}`}>{s.name} ({s.class})</option>
             ))}
           </select>
 
@@ -587,11 +589,11 @@ export default function ExamsModule() {
           <select
             value={selectedSubjectFilter}
             onChange={(e) => setSelectedSubjectFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none"
+            className={`px-3 py-2 ${theme.bgInput} border ${theme.borderMain} rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none`}
           >
-            <option value="All">All Subjects</option>
+            <option value="All" className={`${theme.bgCard} ${theme.textMain}`}>All Subjects</option>
             {availableSubjects.map(sub => (
-              <option key={sub} value={sub}>{sub}</option>
+              <option key={sub} value={sub} className={`${theme.bgCard} ${theme.textMain}`}>{sub}</option>
             ))}
           </select>
 
@@ -599,7 +601,7 @@ export default function ExamsModule() {
           {activeTab === 'planner' && (
             <button
               onClick={handleOpenScheduleCreate}
-              className="py-2 px-3 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+              className={`py-2 px-3 ${theme.btnPrimary} rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0`}
               id="schedule-exam-btn"
             >
               <Plus size={14} />
@@ -610,7 +612,7 @@ export default function ExamsModule() {
           {activeTab === 'gradebook' && (
             <button
               onClick={handleOpenRecordCreate}
-              className="py-2 px-3 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+              className={`py-2 px-3 ${theme.btnPrimary} rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0`}
               id="record-grade-btn"
             >
               <Plus size={14} />
@@ -628,7 +630,7 @@ export default function ExamsModule() {
       {activeTab === 'planner' && (
         <div className="space-y-4 animate-fade-in">
           {/* Status filters row */}
-          <div className="flex flex-wrap items-center gap-2 pb-1 bg-slate-50 p-2.5 rounded-2xl border border-slate-100 max-w-fit" id="planner-status-filters">
+          <div className={`flex flex-wrap items-center gap-2 pb-1 ${theme.bgCardElevated} p-2.5 rounded-2xl border ${theme.borderMain} max-w-fit`} id="planner-status-filters">
             {(['Pending', 'Today', 'Complete', 'All'] as const).map((filter) => {
               const count = examSchedules.filter(ex => {
                 const matchesStudent = selectedStudentFilter === 'All' || ex.studentId === selectedStudentFilter;
@@ -649,12 +651,12 @@ export default function ExamsModule() {
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
                     plannerFilter === filter
                       ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
+                      : `${theme.bgCard} hover:${theme.bgCardHover} ${theme.textMain} border ${theme.borderMain}`
                   }`}
                 >
                   <span>{filter}</span>
                   <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none ${
-                    plannerFilter === filter ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'
+                    plannerFilter === filter ? 'bg-indigo-500 text-white' : `${theme.bgCardElevated} ${theme.textMuted}`
                   }`}>
                     {count}
                   </span>
@@ -665,13 +667,13 @@ export default function ExamsModule() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="schedules-deck">
           {filteredSchedules.length === 0 ? (
-            <div className="col-span-full bg-white border border-slate-200 rounded-3xl p-10 text-center space-y-3" id="schedules-empty-slate">
-              <CalendarDays className="mx-auto text-slate-350 text-slate-300 stroke-[1.2]" size={48} />
-              <h4 className="text-sm font-extrabold text-slate-800">No upcoming exam schedules found</h4>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">Create test slots so that the applet can trigger alert reminders automatically before completion.</p>
+            <div className={`col-span-full ${theme.bgCard} border ${theme.borderMain} rounded-3xl p-10 text-center space-y-3`} id="schedules-empty-slate">
+              <CalendarDays className={`mx-auto ${theme.textMuted} stroke-[1.2]`} size={48} />
+              <h4 className={`text-sm font-extrabold ${theme.textTitle}`}>No upcoming exam schedules found</h4>
+              <p className={`text-xs ${theme.textMuted} max-w-sm mx-auto`}>Create test slots so that the applet can trigger alert reminders automatically before completion.</p>
               <button
                 onClick={handleOpenScheduleCreate}
-                className="mx-auto py-2 px-4 bg-indigo-600 text-white hover:bg-indigo-750 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                className={`mx-auto py-2 px-4 ${theme.btnPrimary} rounded-xl text-xs font-bold transition flex items-center gap-1.5`}
               >
                 <Plus size={14} /> Schedule First Test
               </button>
@@ -691,22 +693,22 @@ export default function ExamsModule() {
               return (
                 <div 
                   key={ex.id} 
-                  className={`bg-white border rounded-[28px] p-5 shadow-sm hover:shadow-md transition duration-250 flex flex-col justify-between space-y-4 relative overflow-hidden ${
+                  className={`${theme.bgCard} border rounded-[28px] p-5 shadow-sm hover:shadow-md transition duration-250 flex flex-col justify-between space-y-4 relative overflow-hidden ${
                     statusTag === 'Complete' 
-                      ? 'border-emerald-150 bg-slate-50/40' 
+                      ? 'border-emerald-150 dark:border-emerald-900/40 bg-slate-50/40 dark:bg-emerald-950/5' 
                       : statusTag === 'Today'
-                        ? 'border-amber-200 ring-2 ring-amber-500/5'
-                        : 'border-indigo-150 ring-2 ring-indigo-500/5'
+                        ? 'border-amber-200 dark:border-amber-900/40 ring-2 ring-amber-500/5'
+                        : `border-indigo-150 dark:border-indigo-900/40 ring-2 ring-indigo-500/5`
                   }`}
                 >
                   {/* Badge */}
                   <div className="absolute top-0 right-0">
                     <span className={`text-[8.5px] font-black uppercase px-3.5 py-1 rounded-bl-xl border-l border-b ${
                       statusTag === 'Complete'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40'
                         : statusTag === 'Today'
-                          ? 'bg-amber-50 text-amber-700 border-amber-100 animate-pulse'
-                          : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                          ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-100 dark:border-amber-900/40 animate-pulse'
+                          : `bg-indigo-50 dark:bg-indigo-950/40 ${theme.textAccent} border-indigo-100 dark:border-indigo-900/40`
                     }`}>
                       {statusTag}
                     </span>
@@ -714,32 +716,32 @@ export default function ExamsModule() {
 
                   {/* Header info */}
                   <div className="space-y-2">
-                    <span className="text-[9.5px] bg-slate-100 text-slate-600 py-1 px-2.5 rounded-full font-bold uppercase tracking-wider">
+                    <span className={`text-[9.5px] ${theme.bgCardElevated} ${theme.textMain} py-1 px-2.5 rounded-full font-bold uppercase tracking-wider`}>
                       {ex.subject}
                     </span>
-                    <h3 className="text-base font-black text-slate-900 leading-tight pt-1">
+                    <h3 className={`text-base font-black ${theme.textTitle} leading-tight pt-1`}>
                       {ex.topic}
                     </h3>
-                    <p className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
-                      <User size={12} className="text-slate-400" />
+                    <p className={`text-xs ${theme.textMuted} font-medium flex items-center gap-1.5`}>
+                      <User size={12} className={theme.textMuted} />
                       {getSubTitleText(ex.studentId)}
                     </p>
                   </div>
 
                   {/* Date details */}
-                  <div className="py-2.5 px-3.5 bg-slate-50 rounded-2xl flex items-center justify-between text-xs font-bold text-slate-700 font-mono">
+                  <div className={`py-2.5 px-3.5 ${theme.bgInput} rounded-2xl flex items-center justify-between text-xs font-bold ${theme.textMain} font-mono`}>
                     <span className="flex items-center gap-1.5">
-                      <Calendar size={13} className="text-slate-400" />
+                      <Calendar size={13} className={theme.textMuted} />
                       {formatDate(ex.date)}
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <Clock size={13} className="text-slate-400" />
+                      <Clock size={13} className={theme.textMuted} />
                       {formatTime(ex.time)}
                     </span>
                   </div>
 
                   {/* Option values */}
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
+                  <div className={`flex items-center justify-between text-[11px] ${theme.textMuted} font-medium`}>
                     <span>Target total: <strong>{ex.totalMarks} Marks</strong></span>
                     <span className="flex items-center gap-1">
                       <AlertCircle size={11} />
@@ -748,13 +750,13 @@ export default function ExamsModule() {
                   </div>
 
                   {/* Action row footer */}
-                  <div className="border-t border-slate-100 pt-3.5 flex items-center gap-1.5 justify-between">
+                  <div className={`border-t ${theme.borderMuted} pt-3.5 flex items-center gap-1.5 justify-between`}>
                     <div className="flex items-center gap-1 min-h-[36px]">
                       {statusTag !== 'Complete' && (
                         <>
                           <button
                             onClick={() => handleOpenScheduleEdit(ex)}
-                            className="p-2 border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-800 rounded-xl transition cursor-pointer"
+                            className={`p-2 border ${theme.borderMain} hover:${theme.bgCardHover} ${theme.textMuted} hover:${theme.textTitle} rounded-xl transition cursor-pointer`}
                             title="Edit schedule details"
                           >
                             <Edit2 size={12} />
@@ -765,7 +767,7 @@ export default function ExamsModule() {
                                 deleteExamSchedule(ex.id);
                               }
                             }}
-                            className="p-2 border border-slate-200 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition cursor-pointer"
+                            className={`p-2 border ${theme.borderMain} hover:bg-rose-50 dark:hover:bg-rose-950/20 ${theme.textMuted} hover:text-rose-600 rounded-xl transition cursor-pointer`}
                             title="Delete schedule slot"
                           >
                             <Trash2 size={12} />
@@ -775,13 +777,13 @@ export default function ExamsModule() {
                     </div>
 
                     {hasRecordLink ? (
-                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 py-1.5 px-2.5 rounded-xl flex items-center gap-1 shadow-xs">
+                      <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 py-1.5 px-2.5 rounded-xl flex items-center gap-1 shadow-xs">
                         <CheckCircle2 size={12} /> Graded Log
                       </span>
                     ) : (
                       <button
                         onClick={() => handleLogMarksFromSchedule(ex)}
-                        className="py-1.5 px-3 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95 cursor-pointer"
+                        className={`py-1.5 px-3 ${theme.btnPrimary} rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95 cursor-pointer`}
                       >
                         <GraduationCap size={13} />
                         Log Score
@@ -799,11 +801,11 @@ export default function ExamsModule() {
 
       {/* TAB 2: GRADEBOOK LOGS */}
       {activeTab === 'gradebook' && (
-        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm" id="gradebook-card">
+        <div className={`${theme.bgCard} border ${theme.borderMain} rounded-3xl overflow-hidden shadow-sm`} id="gradebook-card">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider">
+                <tr className={`${theme.bgCardElevated} border-b ${theme.borderMain} ${theme.textMuted} font-extrabold uppercase text-[10px] tracking-wider`}>
                   <th className="py-4 px-5">Pupil Profile</th>
                   <th className="py-4 px-5">Subject Matters</th>
                   <th className="py-4 px-5">Topic Checked</th>
@@ -814,12 +816,12 @@ export default function ExamsModule() {
                   <th className="py-4 px-5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
+              <tbody className={`divide-y ${theme.borderMuted} text-xs`}>
                 {filteredRecords.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 px-5 text-center text-slate-400 font-medium">
+                    <td colSpan={8} className={`py-12 px-5 text-center ${theme.textMuted} font-medium`}>
                       <div className="space-y-2">
-                        <Award className="mx-auto text-slate-300 stroke-[1.2]" size={36} />
+                        <Award className={`mx-auto ${theme.textMuted} stroke-[1.2]`} size={36} />
                         <p>No graded academic records found matched under selected parameters.</p>
                       </div>
                     </td>
@@ -842,29 +844,29 @@ export default function ExamsModule() {
                     }
 
                     return (
-                      <tr key={rec.id} className="hover:bg-slate-50/50 transition">
-                        <td className="py-4 px-5 font-bold text-slate-900">
+                      <tr key={rec.id} className={`hover:${theme.bgCardHover} transition`}>
+                        <td className={`py-4 px-5 font-bold ${theme.textTitle}`}>
                           {getSubTitleText(rec.studentId)}
                         </td>
                         <td className="py-4 px-5">
-                          <span className="bg-slate-100 text-slate-700 py-0.5 px-2 rounded-md font-bold text-[10px]">
+                          <span className={`${theme.bgCardElevated} ${theme.textMain} py-0.5 px-2 rounded-md font-bold text-[10px]`}>
                             {rec.subject}
                           </span>
                         </td>
-                        <td className="py-4 px-5 font-medium text-slate-700 max-w-[150px] truncate">
+                        <td className={`py-4 px-5 font-medium ${theme.textMain} max-w-[150px] truncate`}>
                           {rec.topic}
                         </td>
-                        <td className="py-4 px-5 font-mono text-slate-500">
+                        <td className={`py-4 px-5 font-mono ${theme.textMuted}`}>
                           {formatDate(rec.date)}
                         </td>
                         <td className="py-4 px-5 text-center">
                           <div className="inline-block">
-                            <span className="font-bold text-slate-800 text-sm">
+                            <span className={`font-bold ${theme.textTitle} text-sm`}>
                               {rec.status === 'Absent' ? '-' : rec.marksObtained}
                             </span>
-                            <span className="text-slate-400"> / {rec.totalMarks}</span>
+                            <span className={theme.textMuted}> / {rec.totalMarks}</span>
                             {rec.status !== 'Absent' && rec.status !== 'Awaiting' && (
-                              <p className="text-[9px] font-bold text-slate-400 mt-0.5">({scorePct}%)</p>
+                              <p className={`text-[9px] font-bold ${theme.textMuted} mt-0.5`}>({scorePct}%)</p>
                             )}
                           </div>
                         </td>
@@ -873,14 +875,14 @@ export default function ExamsModule() {
                             {statusLabel}
                           </span>
                         </td>
-                        <td className="py-4 px-5 text-slate-500 italic max-w-[200px] truncate" title={rec.remarks}>
+                        <td className={`py-4 px-5 ${theme.textMuted} italic max-w-[200px] truncate`} title={rec.remarks}>
                           {rec.remarks || 'No notes added'}
                         </td>
                         <td className="py-4 px-5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => handleOpenRecordEdit(rec)}
-                              className="p-1.5 border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-800 rounded-lg transition"
+                              className={`p-1.5 border ${theme.borderMain} hover:${theme.bgCardHover} ${theme.textMuted} hover:${theme.textTitle} rounded-lg transition`}
                               title="Edit academic details"
                             >
                               <Edit2 size={11} />
@@ -891,7 +893,7 @@ export default function ExamsModule() {
                                   deleteExamRecord(rec.id);
                                 }
                               }}
-                              className="p-1.5 border border-slate-200 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                              className={`p-1.5 border ${theme.borderMain} hover:bg-rose-50 dark:hover:bg-rose-950/20 ${theme.textMuted} hover:text-rose-600 rounded-lg transition`}
                               title="Delete result row"
                             >
                               <Trash2 size={11} />
@@ -912,34 +914,34 @@ export default function ExamsModule() {
       {activeTab === 'analytics' && (
         <div className="space-y-6" id="analytics-deck">
           {students.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-3xl p-10 text-center space-y-3">
-              <User className="mx-auto text-slate-300" size={48} />
-              <h4 className="text-sm font-extrabold text-slate-800">No student directory records available</h4>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">Create student files under Student Directory to visualize custom grade analysis.</p>
+            <div className={`${theme.bgCard} border ${theme.borderMain} rounded-3xl p-10 text-center space-y-3`}>
+              <User className={`mx-auto ${theme.textMuted}`} size={48} />
+              <h4 className={`text-sm font-extrabold ${theme.textTitle}`}>No student directory records available</h4>
+              <p className={`text-xs ${theme.textMuted} max-w-sm mx-auto`}>Create student files under Student Directory to visualize custom grade analysis.</p>
             </div>
           ) : (
             <>
               {/* Student Selector Row */}
-              <div className="bg-slate-50 border border-slate-200 p-4 rounded-[24px] flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className={`${theme.bgCardElevated} border ${theme.borderMain} p-4 rounded-[24px] flex flex-col md:flex-row md:items-center justify-between gap-4`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-2xl flex items-center justify-center font-extrabold shrink-0">
+                  <div className={`w-10 h-10 ${theme.bgAccent} border ${theme.borderMain} ${theme.textAccent} rounded-2xl flex items-center justify-center font-extrabold shrink-0`}>
                     <User size={18} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-black text-slate-800 leading-none">Individual Student Analytics Workspace</h4>
-                    <p className="text-[10px] text-slate-400 mt-1 flex-wrap">Select a student first to isolate and inspect their progress without comparison.</p>
+                    <h4 className={`text-sm font-black ${theme.textTitle} leading-none`}>Individual Student Analytics Workspace</h4>
+                    <p className={`text-[10px] ${theme.textMuted} mt-1 flex-wrap`}>Select a student first to isolate and inspect their progress without comparison.</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500 shrink-0">Student Profile:</span>
+                  <span className={`text-xs font-bold ${theme.textMuted} shrink-0`}>Student Profile:</span>
                   <select
                     value={selectedAnalyticsStudentId}
                     onChange={(e) => setSelectedAnalyticsStudentId(e.target.value)}
-                    className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/15 focus:border-indigo-500 min-w-[200px] shadow-xs cursor-pointer"
+                    className={`${theme.bgCard} border ${theme.borderMain} rounded-xl px-4 py-2 text-xs font-bold ${theme.textMain} outline-none focus:ring-2 focus:ring-indigo-500/15 focus:border-indigo-500 min-w-[200px] shadow-xs cursor-pointer`}
                   >
                     {students.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.class})</option>
+                      <option key={s.id} value={s.id} className={`${theme.bgCard} ${theme.textMain}`}>{s.name} ({s.class})</option>
                     ))}
                   </select>
                 </div>
@@ -947,27 +949,27 @@ export default function ExamsModule() {
 
               {/* Individual Student KPI stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                  <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400">Total Exams Taken</p>
-                  <p className="text-xl font-black text-slate-900 mt-1">{selectedStudentOverviewStats.totalTaken}</p>
-                  <p className="text-[8.5px] text-slate-400 mt-0.5">Includes absent/awaiting slots</p>
+                <div className={`${theme.bgCard} border ${theme.borderMain} rounded-2xl p-4 shadow-xs`}>
+                  <p className={`text-[9px] uppercase font-bold tracking-wider ${theme.textMuted}`}>Total Exams Taken</p>
+                  <p className={`text-xl font-black ${theme.textTitle} mt-1`}>{selectedStudentOverviewStats.totalTaken}</p>
+                  <p className={`text-[8.5px] ${theme.textMuted} mt-0.5`}>Includes absent/awaiting slots</p>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                  <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400">Pass Efficiency Rate</p>
-                  <p className="text-xl font-black text-emerald-600 mt-1">{selectedStudentOverviewStats.passRate}%</p>
+                <div className={`${theme.bgCard} border ${theme.borderMain} rounded-2xl p-4 shadow-xs`}>
+                  <p className={`text-[9px] uppercase font-bold tracking-wider ${theme.textMuted}`}>Pass Efficiency Rate</p>
+                  <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{selectedStudentOverviewStats.passRate}%</p>
                   <p className="text-[8.5px] text-emerald-500/80 mt-0.5">{selectedStudentOverviewStats.passedCount} tests passed</p>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                  <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400">Average Score Ratio</p>
-                  <p className="text-xl font-black text-indigo-600 mt-1">{selectedStudentOverviewStats.averageScore}%</p>
-                  <p className="text-[8.5px] text-slate-400 mt-0.5">Based on graded scores</p>
+                <div className={`${theme.bgCard} border ${theme.borderMain} rounded-2xl p-4 shadow-xs`}>
+                  <p className={`text-[9px] uppercase font-bold tracking-wider ${theme.textMuted}`}>Average Score Ratio</p>
+                  <p className={`text-xl font-black ${theme.textAccent} mt-1`}>{selectedStudentOverviewStats.averageScore}%</p>
+                  <p className={`text-[8.5px] ${theme.textMuted} mt-0.5`}>Based on graded scores</p>
                 </div>
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-                  <p className="text-[9px] uppercase font-bold tracking-wider text-slate-400">Class Standing Logs</p>
+                <div className={`${theme.bgCard} border ${theme.borderMain} rounded-2xl p-4 shadow-xs`}>
+                  <p className={`text-[9px] uppercase font-bold tracking-wider ${theme.textMuted}`}>Class Standing Logs</p>
                   <div className="flex items-center gap-1.5 mt-1 font-bold text-xs select-none">
-                    <span className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded" title="Passed">{selectedStudentOverviewStats.passedCount}P</span>
-                    <span className="text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded" title="Failed">{selectedStudentOverviewStats.failedCount}F</span>
-                    <span className="text-slate-500 bg-slate-105 bg-slate-100 px-1.5 py-0.5 rounded" title="Absent">{selectedStudentOverviewStats.absentCount}Ab</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded" title="Passed">{selectedStudentOverviewStats.passedCount}P</span>
+                    <span className="text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded" title="Failed">{selectedStudentOverviewStats.failedCount}F</span>
+                    <span className={`text-slate-500 ${theme.bgCardElevated} px-1.5 py-0.5 rounded`} title="Absent">{selectedStudentOverviewStats.absentCount}Ab</span>
                   </div>
                 </div>
               </div>
@@ -975,28 +977,35 @@ export default function ExamsModule() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
                 {/* Chart 1: Student Subject performance */}
-                <div className="bg-white border border-slate-200 p-5 rounded-[28px] shadow-sm flex flex-col justify-between">
+                <div className={`${theme.bgCard} border ${theme.borderMain} p-5 rounded-[28px] shadow-sm flex flex-col justify-between`}>
                   <div>
-                    <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
-                      <BarChart3 size={15} className="text-indigo-600" />
+                    <h4 className={`text-sm font-extrabold ${theme.textTitle} flex items-center gap-1.5`}>
+                      <BarChart3 size={15} className={theme.textAccent} />
                       Subject-Wise Efficiency Breakdown
                     </h4>
-                    <p className="text-[10px] text-slate-400 mt-0.5 pb-2">Average percentage scores across different tutoring subjects for this student.</p>
+                    <p className={`text-[10px] ${theme.textMuted} mt-0.5 pb-2`}>Average percentage scores across different tutoring subjects for this student.</p>
                   </div>
 
                   <div className="h-64 mt-2" id="student-subject-score-bar">
                     {selectedStudentSubjectPerformance.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-slate-400 text-xs font-medium">
+                      <div className={`h-full flex items-center justify-center ${theme.textMuted} text-xs font-medium`}>
                         No graded test records logged yet for this specific student profile.
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={selectedStudentSubjectPerformance} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 600, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                          <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#334155' : '#f1f5f9'} />
+                          <XAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 600, fill: darkMode ? '#94a3b8' : '#64748b' }} axisLine={false} tickLine={false} />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 500, fill: darkMode ? '#94a3b8' : '#64748b' }} axisLine={false} tickLine={false} />
                           <Tooltip 
-                            contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '11px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }} 
+                            contentStyle={{ 
+                              borderRadius: '12px', 
+                              background: darkMode ? '#1e293b' : '#ffffff', 
+                              border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, 
+                              color: darkMode ? '#f8fafc' : '#0f172a',
+                              fontSize: '11px', 
+                              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' 
+                            }} 
                             formatter={(val) => [`${val}%`, 'Avg Score']}
                           />
                           <Bar dataKey="Avg Performance %" radius={[6, 6, 0, 0]}>
@@ -1011,30 +1020,30 @@ export default function ExamsModule() {
                 </div>
 
                 {/* Individual completed exams log list */}
-                <div className="bg-white border border-slate-200 p-5 rounded-[28px] shadow-sm flex flex-col justify-between">
+                <div className={`${theme.bgCard} border ${theme.borderMain} p-5 rounded-[28px] shadow-sm flex flex-col justify-between`}>
                   <div>
-                    <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
-                      <BookOpen size={15} className="text-indigo-600" />
+                    <h4 className={`text-sm font-extrabold ${theme.textTitle} flex items-center gap-1.5`}>
+                      <BookOpen size={15} className={theme.textAccent} />
                       Completed Exam Syllabus Records
                     </h4>
-                    <p className="text-[10px] text-slate-400 mt-0.5 pb-2">List of graded assessment achievements and exam scores.</p>
+                    <p className={`text-[10px] ${theme.textMuted} mt-0.5 pb-2`}>List of graded assessment achievements and exam scores.</p>
                   </div>
 
                   <div className="h-64 mt-2 overflow-y-auto pr-1 space-y-2.5" id="student-exam-history-list">
                     {selectedStudentProgressOverTime.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-slate-400 text-xs font-medium">
+                      <div className={`h-full flex items-center justify-center ${theme.textMuted} text-xs font-medium`}>
                         No completing exam sessions logged yet for this target student.
                       </div>
                     ) : (
                       selectedStudentProgressOverTime.slice().reverse().map((rec, idx) => {
                         return (
-                          <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                          <div key={idx} className={`flex items-center justify-between p-3 ${theme.bgInput} rounded-2xl border ${theme.borderMuted}`}>
                             <div>
-                              <h5 className="text-xs font-extrabold text-slate-800 leading-none">{rec.displayLabel}</h5>
-                              <p className="text-[9px] text-slate-400 mt-1">{rec.date} • Score: {rec.marksLabel}</p>
+                              <h5 className={`text-xs font-extrabold ${theme.textTitle} leading-none`}>{rec.displayLabel}</h5>
+                              <p className={`text-[9px] ${theme.textMuted} mt-1`}>{rec.date} • Score: {rec.marksLabel}</p>
                             </div>
                             <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                              rec['Score %'] >= 50 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                              rec['Score %'] >= 50 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400'
                             }`}>
                               {rec['Score %']}%
                             </span>
@@ -1045,19 +1054,17 @@ export default function ExamsModule() {
                   </div>
                 </div>
 
-              </div>
-
-              {/* Historical academic trajectory line map */}
-              <div className="bg-white border border-slate-200 p-5 rounded-[28px] shadow-sm">
-                <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
-                  <Activity size={15} className="text-indigo-600" />
+              </div>              {/* Historical academic trajectory line map */}
+              <div className={`${theme.bgCard} border ${theme.borderMain} p-5 rounded-[28px] shadow-sm`}>
+                <h4 className={`text-sm font-extrabold ${theme.textTitle} flex items-center gap-1.5`}>
+                  <Activity size={15} className={theme.textAccent} />
                   Isolated Academic Score Trajectory Curve
                 </h4>
-                <p className="text-[10px] text-slate-405 text-slate-400 mt-0.5 pb-2">Chronological grade progression trajectory across tests completed by this student.</p>
+                <p className={`text-[10px] ${theme.textMuted} mt-0.5 pb-2`}>Chronological grade progression trajectory across tests completed by this student.</p>
                 
                 <div className="h-72 mt-4" id="historical-score-recharts-line">
                   {selectedStudentProgressOverTime.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-slate-404 text-xs font-medium">
+                    <div className={`h-full flex items-center justify-center ${theme.textMuted} text-xs font-medium`}>
                       Logs of completed test sessions will form structural progress markers here.
                     </div>
                   ) : (
@@ -1066,11 +1073,17 @@ export default function ExamsModule() {
                         data={selectedStudentProgressOverTime}
                         margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                        <XAxis dataKey="date" tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 500, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#f1f5f9'} vertical={false} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fontWeight: 500, fill: darkMode ? '#94a3b8' : '#64748b' }} axisLine={false} tickLine={false} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontWeight: 500, fill: darkMode ? '#94a3b8' : '#64748b' }} axisLine={false} tickLine={false} />
                         <Tooltip 
-                          contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '11px' }} 
+                          contentStyle={{ 
+                            borderRadius: '12px', 
+                            background: darkMode ? '#1e293b' : '#ffffff', 
+                            border: `1px solid ${darkMode ? '#334155' : '#e2e8f0'}`, 
+                            color: darkMode ? '#f8fafc' : '#0f172a',
+                            fontSize: '11px' 
+                          }} 
                           formatter={(val, name, props) => [`${val}%`, `${props.payload.displayLabel}`]}
                         />
                         <Line type="monotone" dataKey="Score %" stroke="#4f46e5" strokeWidth={3} activeDot={{ r: 6 }} dot={{ strokeWidth: 2, r: 4 }} />
@@ -1087,16 +1100,16 @@ export default function ExamsModule() {
       {/* MODAL 1: EXAM SCHEDULE PLANNER FORM */}
       {showScheduleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowScheduleModal(false)} />
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 relative z-10 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 border border-slate-100">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-black text-slate-950 font-display flex items-center gap-1.5">
-                <CalendarDays size={18} className="text-indigo-600" />
+          <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/60 backdrop-blur-sm" onClick={() => setShowScheduleModal(false)} />
+          <div className={`${theme.bgCard} rounded-3xl w-full max-w-md p-6 relative z-10 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 border ${theme.borderMain}`}>
+            <div className={`flex items-center justify-between border-b ${theme.borderMuted} pb-3`}>
+              <h3 className={`text-lg font-black ${theme.textTitle} font-display flex items-center gap-1.5`}>
+                <CalendarDays size={18} className={theme.textAccent} />
                 {editingScheduleId ? 'Edit Exam Schedule' : 'Schedule Custom Exam'}
               </h3>
               <button 
                 onClick={() => setShowScheduleModal(false)} 
-                className="text-slate-400 hover:text-slate-600 font-extrabold text-xs"
+                className={`${theme.textMuted} hover:${theme.textTitle} font-extrabold text-xs`}
               >
                 Cancel
               </button>
@@ -1106,7 +1119,7 @@ export default function ExamsModule() {
               
               {/* Pupil select */}
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Target Pupil *</label>
+                <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Target Pupil *</label>
                 <select
                   value={scheduleForm.studentId}
                   onChange={(e) => {
@@ -1121,10 +1134,10 @@ export default function ExamsModule() {
                       date: nextSched.date
                     });
                   }}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                  className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                 >
                   {students.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.class})</option>
+                    <option key={s.id} value={s.id} className={`${theme.bgCard} ${theme.textMain}`}>{s.name} ({s.class})</option>
                   ))}
                 </select>
               </div>
@@ -1132,85 +1145,85 @@ export default function ExamsModule() {
               {/* Subject matters */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Course Matter *</label>
+                  <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Course Matter *</label>
                   <input
                     type="text"
                     required
                     placeholder="e.g. Maths, Physics"
                     value={scheduleForm.subject}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, subject: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                    className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Target Marks *</label>
+                  <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Target Marks *</label>
                   <input
                     type="number"
                     required
                     min={1}
                     value={scheduleForm.totalMarks}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, totalMarks: parseInt(e.target.value) || 100 })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                    className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                   />
                 </div>
               </div>
 
               {/* Exam topic */}
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Exam Module/Chapters *</label>
+                <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Exam Module/Chapters *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Chapter 3: Differentiation quiz"
                   value={scheduleForm.topic}
                   onChange={(e) => setScheduleForm({ ...scheduleForm, topic: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                  className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                 />
               </div>
 
               {/* Date & Time */}
               <div className="grid grid-cols-2 gap-3 font-mono">
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Test Date *</label>
+                  <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Test Date *</label>
                   <input
                     type="date"
                     required
                     value={scheduleForm.date}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                    className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Lock Hour *</label>
+                  <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Lock Hour *</label>
                   <input
                     type="time"
                     required
                     value={scheduleForm.time}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                    className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                   />
                 </div>
               </div>
 
               {/* Reminder parameters */}
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">App Alarm Reminder (Minutes Before Exam) *</label>
+                <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>App Alarm Reminder (Minutes Before Exam) *</label>
                 <select
                   value={scheduleForm.reminderMinutes}
                   onChange={(e) => setScheduleForm({ ...scheduleForm, reminderMinutes: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                  className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                 >
-                  <option value={15}>15 Minutes Before</option>
-                  <option value={30}>30 Minutes Before</option>
-                  <option value={60}>1 Hour Before</option>
-                  <option value={120}>2 Hours Before</option>
-                  <option value={1440}>1 Day Before</option>
+                  <option value={15} className={`${theme.bgCard} ${theme.textMain}`}>15 Minutes Before</option>
+                  <option value={30} className={`${theme.bgCard} ${theme.textMain}`}>30 Minutes Before</option>
+                  <option value={60} className={`${theme.bgCard} ${theme.textMain}`}>1 Hour Before</option>
+                  <option value={120} className={`${theme.bgCard} ${theme.textMain}`}>2 Hours Before</option>
+                  <option value={1440} className={`${theme.bgCard} ${theme.textMain}`}>1 Day Before</option>
                 </select>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-indigo-650 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition active:scale-98"
+                className={`w-full py-3 ${theme.btnPrimary} rounded-xl font-bold text-xs uppercase tracking-wider transition active:scale-98`}
               >
                 {editingScheduleId ? 'Save Schedule Overwrite' : 'Publish New Test Slot'}
               </button>
@@ -1223,16 +1236,16 @@ export default function ExamsModule() {
       {/* MODAL 2: PERFORMANCE GRADE RECORD FORM */}
       {showRecordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowRecordModal(false)} />
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 relative z-10 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 border border-slate-100">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-black text-slate-950 font-display flex items-center gap-1.5">
-                <Award size={18} className="text-indigo-600" />
+          <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/60 backdrop-blur-sm" onClick={() => setShowRecordModal(false)} />
+          <div className={`${theme.bgCard} rounded-3xl w-full max-w-md p-6 relative z-10 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 border ${theme.borderMain}`}>
+            <div className={`flex items-center justify-between border-b ${theme.borderMuted} pb-3`}>
+              <h3 className={`text-lg font-black ${theme.textTitle} font-display flex items-center gap-1.5`}>
+                <Award size={18} className={theme.textAccent} />
                 {editingRecordId ? 'Edit Graded Record' : 'Record Student Score'}
               </h3>
               <button 
                 onClick={() => setShowRecordModal(false)} 
-                className="text-slate-400 hover:text-slate-600 font-extrabold text-xs"
+                className={`${theme.textMuted} hover:${theme.textTitle} font-extrabold text-xs`}
               >
                 Cancel
               </button>
@@ -1242,7 +1255,7 @@ export default function ExamsModule() {
               
               {/* Pupil select */}
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Target Pupil *</label>
+                <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Target Pupil *</label>
                 <select
                   disabled={!!recordForm.examScheduleId}
                   value={recordForm.studentId}
@@ -1255,10 +1268,10 @@ export default function ExamsModule() {
                       subject: stud?.subjects?.[0] || ''
                     });
                   }}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15 disabled:opacity-60"
+                  className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15 disabled:opacity-60`}
                 >
                   {students.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.class})</option>
+                    <option key={s.id} value={s.id} className={`${theme.bgCard} ${theme.textMain}`}>{s.name} ({s.class})</option>
                   ))}
                 </select>
               </div>
@@ -1266,7 +1279,7 @@ export default function ExamsModule() {
               {/* Subject details & Total Marks */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Course Matter *</label>
+                  <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Course Matter *</label>
                   <input
                     type="text"
                     required
@@ -1274,49 +1287,49 @@ export default function ExamsModule() {
                     placeholder="e.g. Algebra, Trigonometry"
                     value={recordForm.subject}
                     onChange={(e) => setRecordForm({ ...recordForm, subject: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15 disabled:opacity-60"
+                    className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15 disabled:opacity-60`}
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Budgets Marks *</label>
+                  <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Budgets Marks *</label>
                   <input
                     type="number"
                     required
                     min={1}
                     value={recordForm.totalMarks}
                     onChange={(e) => setRecordForm({ ...recordForm, totalMarks: parseInt(e.target.value) || 100 })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                    className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                   />
                 </div>
               </div>
 
               {/* Topic */}
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Topic Checked *</label>
+                <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Topic Checked *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Quadratic equations test sheet"
                   value={recordForm.topic}
                   onChange={(e) => setRecordForm({ ...recordForm, topic: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                  className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                 />
               </div>
 
               {/* Date & Obtainer Marks */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Test Date *</label>
+                  <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Test Date *</label>
                   <input
                     type="date"
                     required
                     value={recordForm.date}
                     onChange={(e) => setRecordForm({ ...recordForm, date: e.target.value })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                    className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Marks Obtained *</label>
+                  <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Marks Obtained *</label>
                   <input
                     type="number"
                     required
@@ -1325,14 +1338,14 @@ export default function ExamsModule() {
                     disabled={recordForm.status === 'Absent' || recordForm.status === 'Awaiting'}
                     value={recordForm.marksObtained}
                     onChange={(e) => setRecordForm({ ...recordForm, marksObtained: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15 disabled:opacity-50"
+                    className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15 disabled:opacity-50`}
                   />
                 </div>
               </div>
 
               {/* Status Selector */}
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Verdict Outcome *</label>
+                <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Verdict Outcome *</label>
                 <select
                   value={recordForm.status}
                   onChange={(e) => {
@@ -1343,29 +1356,29 @@ export default function ExamsModule() {
                       marksObtained: (nextVal === 'Absent' || nextVal === 'Awaiting') ? 0 : recordForm.marksObtained
                     });
                   }}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15"
+                  className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15`}
                 >
-                  <option value="Passed">Auto Grading (Pass / Fail thresholds)</option>
-                  <option value="Awaiting">Awaiting Result (Paper checking active)</option>
-                  <option value="Absent">Absent (Student skipped exam)</option>
+                  <option value="Passed" className={`${theme.bgCard} ${theme.textMain}`}>Auto Grading (Pass / Fail thresholds)</option>
+                  <option value="Awaiting" className={`${theme.bgCard} ${theme.textMain}`}>Awaiting Result (Paper checking active)</option>
+                  <option value="Absent" className={`${theme.bgCard} ${theme.textMain}`}>Absent (Student skipped exam)</option>
                 </select>
               </div>
 
               {/* Remarks notes */}
               <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-display">Private Tutorial Remarks</label>
+                <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Private Tutorial Remarks</label>
                 <textarea
                   placeholder="Excellent performance on theorems. Needs work on calculations..."
                   rows={2}
                   value={recordForm.remarks}
                   onChange={(e) => setRecordForm({ ...recordForm, remarks: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15 resize-none"
+                  className={`w-full px-3 py-2.5 ${theme.bgInput} border ${theme.borderMain} ${theme.textMain} rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500/15 resize-none`}
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-indigo-650 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl font-bold text-xs uppercase tracking-wider transition active:scale-98"
+                className={`w-full py-3 ${theme.btnPrimary} rounded-xl font-bold text-xs uppercase tracking-wider transition active:scale-98`}
               >
                 {editingRecordId ? 'Overwrite Score Record' : 'Record Score Ledger Entry'}
               </button>
