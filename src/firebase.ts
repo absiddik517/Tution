@@ -1,6 +1,6 @@
 import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
 import { 
-  getFirestore, doc, setDoc, getDocs, collection, deleteDoc, writeBatch, getDocFromServer, getDoc
+  getFirestore, doc, setDoc, updateDoc, getDocs, collection, deleteDoc, writeBatch, getDocFromServer, getDoc
 } from 'firebase/firestore';
 import { 
   getAuth, GoogleAuthProvider, signInWithPopup, signOut, User,
@@ -238,29 +238,71 @@ export async function logOutFromFirebase(customConfig?: FirebaseConfig | null): 
   await signOut(authInstance);
 }
 
-function sanitizeForFirestore(val: any): any {
+/**
+ * Deeply sanitizes objects for Firestore writes (setDoc, updateDoc, writeBatch.set).
+ * Recursively removes all `undefined` values and converts dates/numbers into valid Firestore payloads,
+ * preventing 'Function DocumentReference.set() called with invalid data. Unsupported field value: undefined' rejections.
+ */
+export function sanitizeForFirestore<T = any>(val: T): T {
   if (val === undefined) {
-    return null;
+    return undefined as unknown as T;
   }
   if (val === null) {
-    return null;
+    return null as unknown as T;
   }
   if (val instanceof Date) {
-    return val.toISOString();
+    return val.toISOString() as unknown as T;
+  }
+  if (typeof val === 'number') {
+    if (isNaN(val) || !isFinite(val)) {
+      return 0 as unknown as T;
+    }
+    return val;
+  }
+  if (typeof val !== 'object') {
+    return val;
   }
   if (Array.isArray(val)) {
-    return val.map(sanitizeForFirestore);
+    return val
+      .filter(item => item !== undefined)
+      .map(item => sanitizeForFirestore(item)) as unknown as T;
   }
-  if (typeof val === 'object') {
-    const cleaned: any = {};
-    for (const key of Object.keys(val)) {
-      if (val[key] !== undefined) {
-        cleaned[key] = sanitizeForFirestore(val[key]);
+
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(val as Record<string, any>)) {
+    if (value !== undefined) {
+      const sanitizedChild = sanitizeForFirestore(value);
+      if (sanitizedChild !== undefined) {
+        cleaned[key] = sanitizedChild;
       }
     }
-    return cleaned;
   }
-  return val;
+  return cleaned as T;
+}
+
+/**
+ * Safely writes a document to Firestore, strictly stripping any undefined fields
+ * before invoking setDoc with merge options.
+ */
+export async function safeSetDoc(
+  docRef: any,
+  data: any,
+  options: { merge?: boolean } = { merge: true }
+): Promise<void> {
+  const sanitized = sanitizeForFirestore(data);
+  return setDoc(docRef, sanitized, options);
+}
+
+/**
+ * Safely updates a document in Firestore, strictly stripping any undefined fields
+ * before invoking updateDoc.
+ */
+export async function safeUpdateDoc(
+  docRef: any,
+  data: any
+): Promise<void> {
+  const sanitized = sanitizeForFirestore(data);
+  return updateDoc(docRef, sanitized);
 }
 
 export enum OperationType {

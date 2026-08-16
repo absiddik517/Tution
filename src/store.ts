@@ -5,6 +5,49 @@ import {
   syncLocalToFirebase, fetchFromFirebase, getActiveConfig, isFirebaseConfigured, testFirebaseConnection, SyncProgressUpdate 
 } from './firebase';
 
+/**
+ * Data-sanitization helper to scrub incoming store objects and entity updates.
+ * Recursively removes all `undefined` values and normalizes payload fields so Firestore
+ * operations (such as setDoc, updateDoc, and writeBatch) never encounter 'invalid data' errors
+ * due to unsupported undefined field values.
+ */
+export function scrubStoreObject<T>(val: T): T {
+  if (val === undefined) {
+    return undefined as unknown as T;
+  }
+  if (val === null) {
+    return null as unknown as T;
+  }
+  if (val instanceof Date) {
+    return val.toISOString() as unknown as T;
+  }
+  if (typeof val === 'number') {
+    if (isNaN(val) || !isFinite(val)) {
+      return 0 as unknown as T;
+    }
+    return val;
+  }
+  if (typeof val !== 'object') {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val
+      .filter(item => item !== undefined)
+      .map(item => scrubStoreObject(item)) as unknown as T;
+  }
+
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(val as Record<string, any>)) {
+    if (value !== undefined) {
+      const sanitizedChild = scrubStoreObject(value);
+      if (sanitizedChild !== undefined) {
+        cleaned[key] = sanitizedChild;
+      }
+    }
+  }
+  return cleaned as T;
+}
+
 interface TutorTrackStore {
   students: Student[];
   schedules: Schedule[];
@@ -227,15 +270,16 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
   // STUDENT ACTIONS
   addStudent: (studentData) => {
+    const cleanedData = scrubStoreObject(studentData);
     const now = new Date().toISOString();
     const id = 'stud-' + Math.random().toString(36).substring(2, 9);
-    const newStudent: Student = {
-      ...studentData,
+    const newStudent: Student = scrubStoreObject({
+      ...cleanedData,
       id,
       createdAt: now,
       updatedAt: now,
       syncStatus: 'pending',
-    };
+    });
     const updated = [newStudent, ...get().students];
     TutorTrackDB.setStudents(updated);
     set({ students: updated });
@@ -243,18 +287,19 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
   },
 
   updateStudent: (id, updatedFields) => {
+    const cleanedFields = scrubStoreObject(updatedFields);
     const now = new Date().toISOString();
     const updated: Student[] = get().students.map(s => {
       if (s.id === id) {
         const isOriginallySynced = s.syncStatus === 'synced';
         const prevSnapshot = isOriginallySynced && !s.previousState ? JSON.stringify(s) : s.previousState;
-        return {
+        return scrubStoreObject({
           ...s,
-          ...updatedFields,
+          ...cleanedFields,
           updatedAt: now,
           syncStatus: 'pending' as const,
           previousState: prevSnapshot,
-        };
+        });
       }
       return s;
     });
@@ -329,15 +374,16 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
   // SCHEDULE ACTIONS
   addSchedule: (schedData) => {
+    const cleanedData = scrubStoreObject(schedData);
     const now = new Date().toISOString();
     const id = 'sched-' + Math.random().toString(36).substring(2, 9);
-    const newSched: Schedule = {
-      ...schedData,
+    const newSched: Schedule = scrubStoreObject({
+      ...cleanedData,
       id,
       createdAt: now,
       updatedAt: now,
       syncStatus: 'pending',
-    };
+    });
     const updated = [...get().schedules, newSched];
     TutorTrackDB.setSchedules(updated);
     set({ schedules: updated });
@@ -347,18 +393,19 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
   },
 
   updateSchedule: (id, updatedFields) => {
+    const cleanedFields = scrubStoreObject(updatedFields);
     const now = new Date().toISOString();
     const updated: Schedule[] = get().schedules.map(sc => {
       if (sc.id === id) {
         const isOriginallySynced = sc.syncStatus === 'synced';
         const prevSnapshot = isOriginallySynced && !sc.previousState ? JSON.stringify(sc) : sc.previousState;
-        return {
+        return scrubStoreObject({
           ...sc,
-          ...updatedFields,
+          ...cleanedFields,
           updatedAt: now,
           syncStatus: 'pending' as const,
           previousState: prevSnapshot,
-        };
+        });
       }
       return sc;
     });
@@ -385,14 +432,14 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     const source = get().schedules.find(sc => sc.id === id);
     if (!source) return;
     const now = new Date().toISOString();
-    const duplicated: Schedule = {
+    const duplicated: Schedule = scrubStoreObject({
       ...source,
       id: 'sched-' + Math.random().toString(36).substring(2, 9),
       weekday: source.weekday === 'Friday' ? 'Saturday' : source.weekday, // slightly variant to separate
       createdAt: now,
       updatedAt: now,
       syncStatus: 'pending',
-    };
+    });
     const updated = [...get().schedules, duplicated];
     TutorTrackDB.setSchedules(updated);
     set({ schedules: updated });
@@ -401,15 +448,16 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
   // ATTENDANCE ACTIONS
   addAttendance: (attData) => {
+    const cleanedData = scrubStoreObject(attData);
     const now = new Date().toISOString();
     const id = 'att-' + Math.random().toString(36).substring(2, 9);
-    const newAtt: Attendance = {
-      ...attData,
+    const newAtt: Attendance = scrubStoreObject({
+      ...cleanedData,
       id,
       createdAt: now,
       updatedAt: now,
       syncStatus: 'pending',
-    };
+    });
     const updated = [newAtt, ...get().attendance];
     TutorTrackDB.setAttendance(updated);
     set({ attendance: updated });
@@ -419,18 +467,19 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
   },
 
   updateAttendance: (id, updatedFields) => {
+    const cleanedFields = scrubStoreObject(updatedFields);
     const now = new Date().toISOString();
     const updated: Attendance[] = get().attendance.map(at => {
       if (at.id === id) {
         const isOriginallySynced = at.syncStatus === 'synced';
         const prevSnapshot = isOriginallySynced && !at.previousState ? JSON.stringify(at) : at.previousState;
-        return {
+        return scrubStoreObject({
           ...at,
-          ...updatedFields,
+          ...cleanedFields,
           updatedAt: now,
           syncStatus: 'pending' as const,
           previousState: prevSnapshot,
-        };
+        });
       }
       return at;
     });
@@ -455,15 +504,16 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
   // PAYMENT ACTIONS
   addPayment: (payData) => {
+    const cleanedData = scrubStoreObject(payData);
     const now = new Date().toISOString();
     const id = 'pay-' + Math.random().toString(36).substring(2, 9);
-    const newPay: Payment = {
-      ...payData,
+    const newPay: Payment = scrubStoreObject({
+      ...cleanedData,
       id,
       createdAt: now,
       updatedAt: now,
       syncStatus: 'pending',
-    };
+    });
     const updated = [newPay, ...get().payments];
     TutorTrackDB.setPayments(updated);
     set({ payments: updated });
@@ -471,27 +521,28 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
   },
 
   updatePayment: (id, updatedFields) => {
+    const cleanedFields = scrubStoreObject(updatedFields);
     const now = new Date().toISOString();
     const updated: Payment[] = get().payments.map(py => {
       if (py.id === id) {
         const isOriginallySynced = py.syncStatus === 'synced';
         const prevSnapshot = isOriginallySynced && !py.previousState ? JSON.stringify(py) : py.previousState;
-        const payable = updatedFields.payableAmount !== undefined ? updatedFields.payableAmount : py.payableAmount;
-        const paid = updatedFields.paidAmount !== undefined ? updatedFields.paidAmount : py.paidAmount;
+        const payable = cleanedFields.payableAmount !== undefined ? cleanedFields.payableAmount : py.payableAmount;
+        const paid = cleanedFields.paidAmount !== undefined ? cleanedFields.paidAmount : py.paidAmount;
         const due = payable - paid;
         let finalStatus: Payment['status'] = 'Due';
         if (paid >= payable) finalStatus = 'Paid';
         else if (paid > 0) finalStatus = 'Partial';
 
-        return {
+        return scrubStoreObject({
           ...py,
-          ...updatedFields,
+          ...cleanedFields,
           dueAmount: due,
           status: finalStatus,
           updatedAt: now,
           syncStatus: 'pending' as const,
           previousState: prevSnapshot,
-        };
+        });
       }
       return py;
     });
@@ -572,15 +623,16 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
   // EXAM ACTIONS
   addExamSchedule: (examData) => {
+    const cleanedData = scrubStoreObject(examData);
     const now = new Date().toISOString();
     const id = 'exsch-' + Math.random().toString(36).substring(2, 9);
-    const newExam: ExamSchedule = {
-      ...examData,
+    const newExam: ExamSchedule = scrubStoreObject({
+      ...cleanedData,
       id,
       createdAt: now,
       updatedAt: now,
       syncStatus: 'pending',
-    };
+    });
     const updated = [newExam, ...get().examSchedules];
     TutorTrackDB.setExamSchedules(updated);
     set({ examSchedules: updated });
@@ -595,18 +647,19 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
   },
 
   updateExamSchedule: (id, updatedFields) => {
+    const cleanedFields = scrubStoreObject(updatedFields);
     const now = new Date().toISOString();
     const updated: ExamSchedule[] = get().examSchedules.map(ex => {
       if (ex.id === id) {
         const isOriginallySynced = ex.syncStatus === 'synced';
         const prevSnapshot = isOriginallySynced && !ex.previousState ? JSON.stringify(ex) : ex.previousState;
-        return {
+        return scrubStoreObject({
           ...ex,
-          ...updatedFields,
+          ...cleanedFields,
           updatedAt: now,
           syncStatus: 'pending' as const,
           previousState: prevSnapshot,
-        };
+        });
       }
       return ex;
     });
@@ -631,15 +684,16 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
   },
 
   addExamRecord: (recData) => {
+    const cleanedData = scrubStoreObject(recData);
     const now = new Date().toISOString();
     const id = 'exrec-' + Math.random().toString(36).substring(2, 9);
-    const newRecord: ExamRecord = {
-      ...recData,
+    const newRecord: ExamRecord = scrubStoreObject({
+      ...cleanedData,
       id,
       createdAt: now,
       updatedAt: now,
       syncStatus: 'pending',
-    };
+    });
     const updated = [newRecord, ...get().examRecords];
     TutorTrackDB.setExamRecords(updated);
     set({ examRecords: updated });
@@ -654,18 +708,19 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
   },
 
   updateExamRecord: (id, updatedFields) => {
+    const cleanedFields = scrubStoreObject(updatedFields);
     const now = new Date().toISOString();
     const updated: ExamRecord[] = get().examRecords.map(rec => {
       if (rec.id === id) {
         const isOriginallySynced = rec.syncStatus === 'synced';
         const prevSnapshot = isOriginallySynced && !rec.previousState ? JSON.stringify(rec) : rec.previousState;
-        return {
+        return scrubStoreObject({
           ...rec,
-          ...updatedFields,
+          ...cleanedFields,
           updatedAt: now,
           syncStatus: 'pending' as const,
           previousState: prevSnapshot,
-        };
+        });
       }
       return rec;
     });
@@ -822,13 +877,20 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
         
         if (pullRes.success && pullRes.data) {
           const { 
-            students: remoteStudents = [], 
-            schedules: remoteSchedules = [], 
-            attendance: remoteAttendance = [], 
-            payments: remotePayments = [], 
-            examSchedules: remoteExamSchedules = [], 
-            examRecords: remoteExamRecords = [] 
+            students: rawRemoteStudents = [], 
+            schedules: rawRemoteSchedules = [], 
+            attendance: rawRemoteAttendance = [], 
+            payments: rawRemotePayments = [], 
+            examSchedules: rawRemoteExamSchedules = [], 
+            examRecords: rawRemoteExamRecords = [] 
           } = pullRes.data;
+
+          const remoteStudents = rawRemoteStudents.map(scrubStoreObject);
+          const remoteSchedules = rawRemoteSchedules.map(scrubStoreObject);
+          const remoteAttendance = rawRemoteAttendance.map(scrubStoreObject);
+          const remotePayments = rawRemotePayments.map(scrubStoreObject);
+          const remoteExamSchedules = rawRemoteExamSchedules.map(scrubStoreObject);
+          const remoteExamRecords = rawRemoteExamRecords.map(scrubStoreObject);
 
           const totalDownloaded = remoteStudents.length + remoteSchedules.length + remoteAttendance.length + remotePayments.length + remoteExamSchedules.length + remoteExamRecords.length;
           inboundPullStats.downloadedCount = totalDownloaded;
@@ -847,7 +909,7 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
             // Populate local records
             localList.forEach(item => {
-              resultMap.set(item.id, item);
+              resultMap.set(item.id, scrubStoreObject(item));
             });
 
             // Reconcile remote records
@@ -858,10 +920,11 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
                 return;
               }
 
-              const localItem = resultMap.get(remoteItem.id);
+              const cleanRemote = scrubStoreObject(remoteItem);
+              const localItem = resultMap.get(cleanRemote.id);
               if (!localItem) {
                 // New record from cloud
-                resultMap.set(remoteItem.id, { ...remoteItem, syncStatus: 'synced' as const });
+                resultMap.set(cleanRemote.id, { ...cleanRemote, syncStatus: 'synced' as const });
                 imported++;
               } else {
                 // Both local and remote exist
@@ -869,7 +932,7 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
                   // User has pending uncommitted local edits: keep local version to push up
                 } else {
                   // Both are synced: accept remote version
-                  resultMap.set(remoteItem.id, { ...remoteItem, syncStatus: 'synced' as const });
+                  resultMap.set(cleanRemote.id, { ...cleanRemote, syncStatus: 'synced' as const });
                   updated++;
                 }
               }
@@ -941,18 +1004,21 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
       try {
         appendLog('Outbound Push', 'info', `Replicating local pending records & deletions to Firestore...`);
 
+        // Strictly sanitize all entity payloads to prevent Firestore invalid data / undefined value errors
+        const sanitizedOutboundPayload = {
+          students: workingStudents.map(scrubStoreObject),
+          schedules: workingSchedules.map(scrubStoreObject),
+          attendance: workingAttendance.map(scrubStoreObject),
+          payments: workingPayments.map(scrubStoreObject),
+          examSchedules: workingExamSchedules.map(scrubStoreObject),
+          examRecords: workingExamRecords.map(scrubStoreObject),
+          deletedRecords: (deletedRecords || []).map(scrubStoreObject)
+        };
+
         const result = await syncLocalToFirebase(
           config, 
           userId, 
-          {
-            students: workingStudents,
-            schedules: workingSchedules,
-            attendance: workingAttendance,
-            payments: workingPayments,
-            examSchedules: workingExamSchedules,
-            examRecords: workingExamRecords,
-            deletedRecords
-          },
+          sanitizedOutboundPayload,
           onProgressCallback,
           abortSignal
         );
@@ -1244,7 +1310,13 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
       }));
 
       if (result.success && result.data) {
-        const { students = [], schedules = [], attendance = [], payments = [], examSchedules = [], examRecords = [] } = result.data as any;
+        const rawData = result.data as any;
+        const students = (rawData.students || []).map(scrubStoreObject);
+        const schedules = (rawData.schedules || []).map(scrubStoreObject);
+        const attendance = (rawData.attendance || []).map(scrubStoreObject);
+        const payments = (rawData.payments || []).map(scrubStoreObject);
+        const examSchedules = (rawData.examSchedules || []).map(scrubStoreObject);
+        const examRecords = (rawData.examRecords || []).map(scrubStoreObject);
         const totalFetched = students.length + schedules.length + attendance.length + payments.length + examSchedules.length + examRecords.length;
         
         if (totalFetched === 0) {
@@ -1558,20 +1630,27 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
   // DATA RESTORE & RECOVERY MODULE
   importData: (imported) => {
-    TutorTrackDB.setStudents(imported.students);
-    TutorTrackDB.setSchedules(imported.schedules);
-    TutorTrackDB.setAttendance(imported.attendance);
-    TutorTrackDB.setPayments(imported.payments);
-    if (imported.examSchedules) TutorTrackDB.setExamSchedules(imported.examSchedules);
-    if (imported.examRecords) TutorTrackDB.setExamRecords(imported.examRecords);
+    const students = (imported.students || []).map(scrubStoreObject);
+    const schedules = (imported.schedules || []).map(scrubStoreObject);
+    const attendance = (imported.attendance || []).map(scrubStoreObject);
+    const payments = (imported.payments || []).map(scrubStoreObject);
+    const examSchedules = imported.examSchedules ? imported.examSchedules.map(scrubStoreObject) : undefined;
+    const examRecords = imported.examRecords ? imported.examRecords.map(scrubStoreObject) : undefined;
+
+    TutorTrackDB.setStudents(students);
+    TutorTrackDB.setSchedules(schedules);
+    TutorTrackDB.setAttendance(attendance);
+    TutorTrackDB.setPayments(payments);
+    if (examSchedules) TutorTrackDB.setExamSchedules(examSchedules);
+    if (examRecords) TutorTrackDB.setExamRecords(examRecords);
     
     set({
-      students: imported.students,
-      schedules: imported.schedules,
-      attendance: imported.attendance,
-      payments: imported.payments,
-      examSchedules: imported.examSchedules || get().examSchedules,
-      examRecords: imported.examRecords || get().examRecords,
+      students,
+      schedules,
+      attendance,
+      payments,
+      examSchedules: examSchedules || get().examSchedules,
+      examRecords: examRecords || get().examRecords,
     });
 
     get().addNotification('Database Migrated', 'Imported data parsed and compiled into active database.', 'system');
