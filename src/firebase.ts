@@ -93,8 +93,9 @@ export function getActiveConfig(customConfig?: FirebaseConfig | null): FirebaseC
   return baseAppletConfig;
 }
 
-export function isFirebaseConfigured(config: FirebaseConfig | null | undefined): boolean {
-  return !!(config && config.apiKey && config.projectId);
+export function isFirebaseConfigured(config?: FirebaseConfig | null): boolean {
+  const active = getActiveConfig(config);
+  return !!(active && active.apiKey && active.projectId);
 }
 
 export function initializeFirebase(customConfig?: FirebaseConfig | null) {

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification, ExamSchedule, ExamRecord, SyncProgressState, SyncLogEntry } from './types';
+import { Student, Schedule, Attendance, Payment, AppSettings, AppNotification, ExamSchedule, ExamRecord, SyncProgressState, SyncLogEntry, DeletedRecord } from './types';
 import { TutorTrackDB } from './db';
 import { 
   syncLocalToFirebase, fetchFromFirebase, getActiveConfig, isFirebaseConfigured, testFirebaseConnection, SyncProgressUpdate 
@@ -125,7 +125,30 @@ interface TutorTrackStore {
   undoLocalChange: (collectionName: 'students' | 'schedules' | 'attendance' | 'payments' | 'examSchedules' | 'examRecords', id: string, changeType: 'create' | 'update' | 'delete') => void;
 
   // Export & Recovery
-  importData: (imported: { students: Student[], schedules: Schedule[], attendance: Attendance[], payments: Payment[], examSchedules?: ExamSchedule[], examRecords?: ExamRecord[] }) => void;
+  importData: (
+    imported: { 
+      students?: Student[]; 
+      schedules?: Schedule[]; 
+      attendance?: Attendance[]; 
+      payments?: Payment[]; 
+      examSchedules?: ExamSchedule[]; 
+      examRecords?: ExamRecord[];
+      settings?: Partial<AppSettings>;
+    }, 
+    mode?: 'replace' | 'merge'
+  ) => { success: boolean; count: number; breakdown: { [key: string]: number } };
+
+  importUnsyncedChanges: (
+    payload: {
+      students?: Student[];
+      schedules?: Schedule[];
+      attendance?: Attendance[];
+      payments?: Payment[];
+      examSchedules?: ExamSchedule[];
+      examRecords?: ExamRecord[];
+      deletedRecords?: DeletedRecord[];
+    }
+  ) => { success: boolean; appliedCount: number; deletedCount: number; breakdown: { [key: string]: number } };
 }
 
 // Module-level abort controller for real-time cancellable sync operations
@@ -1629,31 +1652,180 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
   },
 
   // DATA RESTORE & RECOVERY MODULE
-  importData: (imported) => {
-    const students = (imported.students || []).map(scrubStoreObject);
-    const schedules = (imported.schedules || []).map(scrubStoreObject);
-    const attendance = (imported.attendance || []).map(scrubStoreObject);
-    const payments = (imported.payments || []).map(scrubStoreObject);
-    const examSchedules = imported.examSchedules ? imported.examSchedules.map(scrubStoreObject) : undefined;
-    const examRecords = imported.examRecords ? imported.examRecords.map(scrubStoreObject) : undefined;
+  importData: (imported, mode = 'replace') => {
+    const mergeEntities = <T extends { id: string }>(existing: T[], incoming: T[] = []): T[] => {
+      if (mode === 'replace') {
+        return incoming.map(scrubStoreObject);
+      }
+      const map = new Map<string, T>();
+      existing.forEach(item => map.set(item.id, scrubStoreObject(item)));
+      incoming.forEach(item => map.set(item.id, scrubStoreObject(item)));
+      return Array.from(map.values());
+    };
 
-    TutorTrackDB.setStudents(students);
-    TutorTrackDB.setSchedules(schedules);
-    TutorTrackDB.setAttendance(attendance);
-    TutorTrackDB.setPayments(payments);
-    if (examSchedules) TutorTrackDB.setExamSchedules(examSchedules);
-    if (examRecords) TutorTrackDB.setExamRecords(examRecords);
-    
+    const rawStudents = imported.students ? imported.students.map(scrubStoreObject) : [];
+    const rawSchedules = imported.schedules ? imported.schedules.map(scrubStoreObject) : [];
+    const rawAttendance = imported.attendance ? imported.attendance.map(scrubStoreObject) : [];
+    const rawPayments = imported.payments ? imported.payments.map(scrubStoreObject) : [];
+    const rawExamSchedules = imported.examSchedules ? imported.examSchedules.map(scrubStoreObject) : [];
+    const rawExamRecords = imported.examRecords ? imported.examRecords.map(scrubStoreObject) : [];
+
+    const finalStudents = mode === 'replace' ? rawStudents : mergeEntities(get().students, rawStudents);
+    const finalSchedules = mode === 'replace' ? rawSchedules : mergeEntities(get().schedules, rawSchedules);
+    const finalAttendance = mode === 'replace' ? rawAttendance : mergeEntities(get().attendance, rawAttendance);
+    const finalPayments = mode === 'replace' ? rawPayments : mergeEntities(get().payments, rawPayments);
+    const finalExamSchedules = mode === 'replace' ? rawExamSchedules : mergeEntities(get().examSchedules, rawExamSchedules);
+    const finalExamRecords = mode === 'replace' ? rawExamRecords : mergeEntities(get().examRecords, rawExamRecords);
+
+    // Save to local storage database
+    TutorTrackDB.setStudents(finalStudents);
+    TutorTrackDB.setSchedules(finalSchedules);
+    TutorTrackDB.setAttendance(finalAttendance);
+    TutorTrackDB.setPayments(finalPayments);
+    TutorTrackDB.setExamSchedules(finalExamSchedules);
+    TutorTrackDB.setExamRecords(finalExamRecords);
+
+    if (imported.settings && typeof imported.settings === 'object') {
+      const mergedSettings = { ...get().settings, ...scrubStoreObject(imported.settings) };
+      TutorTrackDB.setSettings(mergedSettings);
+      set({ settings: mergedSettings });
+    }
+
     set({
-      students,
-      schedules,
-      attendance,
-      payments,
-      examSchedules: examSchedules || get().examSchedules,
-      examRecords: examRecords || get().examRecords,
+      students: finalStudents,
+      schedules: finalSchedules,
+      attendance: finalAttendance,
+      payments: finalPayments,
+      examSchedules: finalExamSchedules,
+      examRecords: finalExamRecords,
     });
 
-    get().addNotification('Database Migrated', 'Imported data parsed and compiled into active database.', 'system');
+    const totalRecords = finalStudents.length + finalSchedules.length + finalAttendance.length + finalPayments.length + finalExamSchedules.length + finalExamRecords.length;
+    const breakdown = {
+      students: finalStudents.length,
+      schedules: finalSchedules.length,
+      attendance: finalAttendance.length,
+      payments: finalPayments.length,
+      examSchedules: finalExamSchedules.length,
+      examRecords: finalExamRecords.length
+    };
+
+    get().addNotification(
+      'Database Restored',
+      `${mode === 'replace' ? 'Clean overwrite' : 'Merged'} restore completed: ${totalRecords} total records now in database.`,
+      'system'
+    );
+
+    return {
+      success: true,
+      count: totalRecords,
+      breakdown
+    };
+  },
+
+  // IMPORT & STAGE UNSYNCED LOCAL DELTA
+  importUnsyncedChanges: (payload) => {
+    const stageUnsyncedItems = <T extends { id: string; syncStatus?: 'pending' | 'synced'; updatedAt?: string }>(existing: T[], incoming: T[] = []): { merged: T[], count: number } => {
+      const map = new Map<string, T>();
+      existing.forEach(item => map.set(item.id, item));
+      let count = 0;
+      incoming.forEach(item => {
+        const scrubbed = scrubStoreObject(item);
+        const stagedItem = {
+          ...scrubbed,
+          syncStatus: 'pending' as const,
+          updatedAt: scrubbed.updatedAt || new Date().toISOString()
+        };
+        map.set(stagedItem.id, stagedItem);
+        count++;
+      });
+      return { merged: Array.from(map.values()), count };
+    };
+
+    const studentRes = stageUnsyncedItems(get().students, payload.students || []);
+    const schedRes = stageUnsyncedItems(get().schedules, payload.schedules || []);
+    const attRes = stageUnsyncedItems(get().attendance, payload.attendance || []);
+    const payRes = stageUnsyncedItems(get().payments, payload.payments || []);
+    const exSchedRes = stageUnsyncedItems(get().examSchedules, payload.examSchedules || []);
+    const exRecRes = stageUnsyncedItems(get().examRecords, payload.examRecords || []);
+
+    let updatedStudents = studentRes.merged;
+    let updatedSchedules = schedRes.merged;
+    let updatedAttendance = attRes.merged;
+    let updatedPayments = payRes.merged;
+    let updatedExamSchedules = exSchedRes.merged;
+    let updatedExamRecords = exRecRes.merged;
+
+    // Process incoming pending deletions
+    const incomingDeletes = (payload.deletedRecords || []).map(scrubStoreObject);
+    let stagedDeleteCount = 0;
+
+    const existingDeletes = get().settings.deletedRecords || [];
+    const deleteMap = new Map<string, DeletedRecord>();
+    existingDeletes.forEach(d => deleteMap.set(`${d.collectionName}_${d.id}`, d));
+
+    incomingDeletes.forEach(del => {
+      if (!del.id || !del.collectionName) return;
+      deleteMap.set(`${del.collectionName}_${del.id}`, del);
+      stagedDeleteCount++;
+
+      // Remove from local memory if currently present
+      if (del.collectionName === 'students') updatedStudents = updatedStudents.filter(s => s.id !== del.id);
+      if (del.collectionName === 'schedules') updatedSchedules = updatedSchedules.filter(s => s.id !== del.id);
+      if (del.collectionName === 'attendance') updatedAttendance = updatedAttendance.filter(a => a.id !== del.id);
+      if (del.collectionName === 'payments') updatedPayments = updatedPayments.filter(p => p.id !== del.id);
+      if (del.collectionName === 'examSchedules') updatedExamSchedules = updatedExamSchedules.filter(e => e.id !== del.id);
+      if (del.collectionName === 'examRecords') updatedExamRecords = updatedExamRecords.filter(e => e.id !== del.id);
+    });
+
+    const finalDeletedRecords = Array.from(deleteMap.values());
+    const updatedSettings = {
+      ...get().settings,
+      deletedRecords: finalDeletedRecords
+    };
+
+    // Commit to persistent local storage
+    TutorTrackDB.setStudents(updatedStudents);
+    TutorTrackDB.setSchedules(updatedSchedules);
+    TutorTrackDB.setAttendance(updatedAttendance);
+    TutorTrackDB.setPayments(updatedPayments);
+    TutorTrackDB.setExamSchedules(updatedExamSchedules);
+    TutorTrackDB.setExamRecords(updatedExamRecords);
+    TutorTrackDB.setSettings(updatedSettings);
+
+    set({
+      students: updatedStudents,
+      schedules: updatedSchedules,
+      attendance: updatedAttendance,
+      payments: updatedPayments,
+      examSchedules: updatedExamSchedules,
+      examRecords: updatedExamRecords,
+      settings: updatedSettings
+    });
+
+    const totalApplied = studentRes.count + schedRes.count + attRes.count + payRes.count + exSchedRes.count + exRecRes.count;
+    const breakdown = {
+      students: studentRes.count,
+      schedules: schedRes.count,
+      attendance: attRes.count,
+      payments: payRes.count,
+      examSchedules: exSchedRes.count,
+      examRecords: exRecRes.count,
+      deletions: stagedDeleteCount
+    };
+
+    get().addNotification(
+      'Unsynced Delta Staged',
+      `Staged ${totalApplied} pending changes & ${stagedDeleteCount} pending deletions. Ready for cloud sync.`,
+      'system'
+    );
+
+    return {
+      success: true,
+      appliedCount: totalApplied,
+      deletedCount: stagedDeleteCount,
+      breakdown
+    };
   }
 }
 });
