@@ -39,21 +39,23 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
+          gradle-version: 8.11.1
           validate-wrappers: false
 
-      - name: Regenerate Gradle Wrapper
+      - name: Prepare Gradle Wrapper
         run: |
           cd android
-          gradle wrapper --gradle-version 8.14.3
+          gradle wrapper --gradle-version 8.11.1
           chmod +x gradlew
 
       - name: Build APK (Debug)
         run: |
           cd android
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: TutorTrack-Debug-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
