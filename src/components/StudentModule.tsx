@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { formatDate } from '../formatUtils';
 import { useTheme } from '../theme';
+import ConfirmModal from './ConfirmModal';
 
 export default function StudentModule() {
   const { 
@@ -20,6 +21,7 @@ export default function StudentModule() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [deleteConfirmStudent, setDeleteConfirmStudent] = useState<Student | null>(null);
 
   // Form Fields State
   const [formName, setFormName] = useState('');
@@ -356,11 +358,7 @@ export default function StudentModule() {
                     <Edit2 size={14} />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm(`Remove records for ${student.name}? This resets tuition slots.`)) {
-                        deleteStudent(student.id);
-                      }
-                    }}
+                    onClick={() => setDeleteConfirmStudent(student)}
                     className={`p-1.5 ${theme.textMuted} hover:text-rose-500 hover:bg-rose-950/20 rounded-lg transition`}
                     title="Delete profile"
                   >
@@ -658,6 +656,25 @@ export default function StudentModule() {
           </div>
         </div>
       )}
+
+      {/* Delete Student Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmStudent}
+        title="Delete Student Record"
+        message={`Are you sure you want to permanently delete the profile for "${deleteConfirmStudent?.name}"?`}
+        subMessage="This action will also clean up all associated tuition schedules, class logs, and exam marks."
+        confirmText="Delete Student"
+        cancelText="Keep Student"
+        isDestructive={true}
+        icon="trash"
+        onConfirm={() => {
+          if (deleteConfirmStudent) {
+            deleteStudent(deleteConfirmStudent.id);
+            setDeleteConfirmStudent(null);
+          }
+        }}
+        onCancel={() => setDeleteConfirmStudent(null)}
+      />
 
     </div>
   );

@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { formatDate } from '../formatUtils';
 import { useTheme } from '../theme';
+import ConfirmModal from './ConfirmModal';
 
 export default function PaymentModule() {
   const { theme, darkMode } = useTheme();
@@ -18,11 +19,13 @@ export default function PaymentModule() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAutoModal, setShowAutoModal] = useState(false);
+  const [deleteConfirmPaymentId, setDeleteConfirmPaymentId] = useState<string | null>(null);
 
   // Auto Generate Inputs
   const [selectedStudentForAuto, setSelectedStudentForAuto] = useState('');
   const [selectedMonthForAuto, setSelectedMonthForAuto] = useState('June 2026');
   const [expectedDaysForAuto, setExpectedDaysForAuto] = useState(8);
+  const [autoError, setAutoError] = useState('');
 
   // Manual Custom Payment inputs
   const [formStudentId, setFormStudentId] = useState('');
@@ -103,11 +106,12 @@ export default function PaymentModule() {
   const handleAutoSub = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudentForAuto) {
-      alert('Please choose a student to auto compute invoice results.');
+      setAutoError('Please choose a student to auto compute invoice results.');
       return;
     }
 
     generateAutoPayments(selectedStudentForAuto, selectedMonthForAuto, expectedDaysForAuto);
+    setAutoError('');
     setShowAutoModal(false);
   };
 
@@ -266,11 +270,7 @@ export default function PaymentModule() {
                           </button>
                         )}
                         <button
-                          onClick={() => {
-                            if (confirm('Delete this billing invoice record?')) {
-                              deletePayment(pay.id);
-                            }
-                          }}
+                          onClick={() => setDeleteConfirmPaymentId(pay.id)}
                           className={`p-2 border ${theme.borderMuted} ${theme.textMuted} hover:text-red-500 hover:${theme.bgCard} rounded-lg transition`}
                           title="Delete invoice record"
                         >
@@ -450,6 +450,12 @@ export default function PaymentModule() {
 
             <form onSubmit={handleAutoSub} className="p-6 space-y-4">
               
+              {autoError && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-150 dark:border-red-900/40 rounded-xl text-xs text-red-600 dark:text-red-400 font-bold">
+                  ⚠️ {autoError}
+                </div>
+              )}
+
               {/* Student choose */}
               <div className="space-y-1">
                 <label className={`text-xs font-bold ${theme.textMuted} uppercase tracking-wider block`}>Student Client</label>
@@ -652,6 +658,25 @@ export default function PaymentModule() {
           </div>
         </div>
       )}
+
+      {/* Delete Invoice Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmPaymentId}
+        title="Delete Billing Invoice"
+        message="Are you sure you want to delete this billing invoice record?"
+        subMessage="This invoice will be removed from your earnings and dues balance."
+        confirmText="Delete Invoice"
+        cancelText="Cancel"
+        isDestructive={true}
+        icon="trash"
+        onConfirm={() => {
+          if (deleteConfirmPaymentId) {
+            deletePayment(deleteConfirmPaymentId);
+            setDeleteConfirmPaymentId(null);
+          }
+        }}
+        onCancel={() => setDeleteConfirmPaymentId(null)}
+      />
 
     </div>
   );

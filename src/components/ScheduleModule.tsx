@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { formatDate, formatTime } from '../formatUtils';
 import { useTheme } from '../theme';
+import ConfirmModal from './ConfirmModal';
 
 export default function ScheduleModule() {
   const { theme } = useTheme();
@@ -15,6 +16,7 @@ export default function ScheduleModule() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+  const [deleteConfirmScheduleId, setDeleteConfirmScheduleId] = useState<string | null>(null);
 
   // Form Fields
   const [formStudentId, setFormStudentId] = useState('');
@@ -260,11 +262,7 @@ export default function ScheduleModule() {
                           <Edit3 size={12} />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Remove this tuition slot?`)) {
-                              deleteSchedule(sc.id);
-                            }
-                          }}
+                          onClick={() => setDeleteConfirmScheduleId(sc.id)}
                           className={`p-1.5 border ${theme.borderMuted} ${theme.textMuted} hover:text-red-500 hover:${theme.bgCard} rounded-lg transition`}
                           title="Delete slot"
                         >
@@ -461,6 +459,25 @@ export default function ScheduleModule() {
       >
         <Plus size={24} className="stroke-[2.5]" />
       </button>
+
+      {/* Delete Schedule Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmScheduleId}
+        title="Delete Tuition Schedule Slot"
+        message="Are you sure you want to remove this weekly class schedule slot?"
+        subMessage="This slot will be removed from your weekly schedule overview."
+        confirmText="Remove Slot"
+        cancelText="Keep Slot"
+        isDestructive={true}
+        icon="trash"
+        onConfirm={() => {
+          if (deleteConfirmScheduleId) {
+            deleteSchedule(deleteConfirmScheduleId);
+            setDeleteConfirmScheduleId(null);
+          }
+        }}
+        onCancel={() => setDeleteConfirmScheduleId(null)}
+      />
 
     </div>
   );

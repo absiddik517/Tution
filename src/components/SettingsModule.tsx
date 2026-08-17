@@ -3,18 +3,21 @@ import { useStore } from '../store';
 import { 
   CloudRain, ShieldAlert, ShieldCheck, Download, Upload, RotateCcw, CloudLightning, Shield, KeyRound, Monitor, Eye, EyeOff, Save, Trash2, FileSpreadsheet, RefreshCw, Volume2, Bell, Palette, Sun, Moon,
   Activity, CheckCircle2, AlertTriangle, XCircle, Terminal, Clock, Zap, Database, Server, Square, StopCircle,
-  FileJson, Check, X, HardDrive, ArrowDownToLine, ArrowUpFromLine, Layers
+  FileJson, Check, X, HardDrive, ArrowDownToLine, ArrowUpFromLine, Layers, Share2
 } from 'lucide-react';
 import { SOUND_PRESETS, playSoundPreset } from '../sound';
 import appletConfig from '../../firebase-applet-config.json';
 import { useTheme, THEME_PRESETS, ThemePreset } from '../theme';
 import { getActiveConfig, isFirebaseConfigured } from '../firebase';
+import { exportFile } from '../exportUtils';
+import ExportPreviewModal from './ExportPreviewModal';
+import ConfirmModal from './ConfirmModal';
 
 export default function SettingsModule() {
   const { 
     settings, students, schedules, attendance, payments, examSchedules, examRecords,
-    toggleDarkMode, setColorTheme, setPinLock, clearDatabase, triggerManualSync, importData, importUnsyncedChanges,
-    saveFirebaseConfig, triggerFirebasePull, updateLandmarkAlerts,
+    toggleDarkMode, setColorTheme, setPinLock, clearDatabase, triggerManualSync, triggerIncrementalSync, importData, importUnsyncedChanges,
+    saveFirebaseConfig, triggerFirebasePull, triggerFullCloudPull, updateLandmarkAlerts,
     syncProgress, clearSyncLogs, testFirebaseHealth, stopSync
   } = useStore();
 
@@ -90,6 +93,31 @@ export default function SettingsModule() {
   const [exportSuccessNotice, setExportSuccessNotice] = useState<string | null>(null);
   const [restoreSuccessNotice, setRestoreSuccessNotice] = useState<string | null>(null);
 
+  // Cross-platform Preview & Share Modal State
+  const [exportPreviewModal, setExportPreviewModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    fileName: string;
+    content: string;
+    mimeType?: string;
+    itemCount?: number;
+  }>({
+    isOpen: false,
+    title: '',
+    fileName: '',
+    content: '',
+    mimeType: 'application/json;charset=utf-8;'
+  });
+
+  // Confirmation Modals States
+  const [pullCloudConfirmOpen, setPullCloudConfirmOpen] = useState(false);
+  const [wipeDbConfirmOpen, setWipeDbConfirmOpen] = useState(false);
+  const [configFeedback, setConfigFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [pinFeedback, setPinFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [landmarksFeedback, setLandmarksFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [notificationFeedback, setNotificationFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [importFileError, setImportFileError] = useState<string | null>(null);
+
   // Compute Unsynced / Pending Records in Local Database
   const unsyncedStudents = useMemo(() => students.filter(s => s.syncStatus === 'pending'), [students]);
   const unsyncedSchedules = useMemo(() => schedules.filter(s => s.syncStatus === 'pending'), [schedules]);
@@ -122,16 +150,20 @@ export default function SettingsModule() {
         
         setNotificationPermission(permission);
         if (permission === 'granted') {
+          setNotificationFeedback({ text: 'Notifications enabled! You will now receive operating-system level notices on your device.', isError: false });
           new Notification('Notifications Enabled! 🔔', {
             body: 'You will now receive operating-system level notices on your device.',
           });
+        } else {
+          setNotificationFeedback({ text: `Notification status: ${permission}`, isError: permission === 'denied' });
         }
       } catch (err: any) {
-        alert('Permission request failed: ' + (err?.message || err));
+        setNotificationFeedback({ text: 'Permission request failed: ' + (err?.message || err), isError: true });
       }
     } else {
-      alert('Local device notifications are not supported by this browser/wrapper environment.');
+      setNotificationFeedback({ text: 'Local device notifications are not supported by this browser/wrapper environment.', isError: true });
     }
+    setTimeout(() => setNotificationFeedback(null), 6000);
   };
 
   const testOSNotification = () => {
@@ -157,7 +189,7 @@ export default function SettingsModule() {
   const handleSaveConfig = (e: React.FormEvent) => {
     e.preventDefault();
     if (!apiKey || !projectId) {
-      alert('API Key and Project ID are required to establish a secure database link.');
+      setConfigFeedback({ text: 'API Key and Project ID are required to establish a secure database link.', isError: true });
       return;
     }
     saveFirebaseConfig({
@@ -170,70 +202,76 @@ export default function SettingsModule() {
       firestoreDatabaseId: dbId || '(default)',
       measurementId: measurementIdState
     });
-    alert('Firebase Cloud synchronization parameters saved successfully.');
-    setShowConfigForm(false);
+    setConfigFeedback({ text: 'Firebase Cloud synchronization parameters saved successfully!', isError: false });
+    setTimeout(() => {
+      setConfigFeedback(null);
+      setShowConfigForm(false);
+    }, 1500);
   };
 
-  const handlePullFromFirebase = async () => {
+  const handlePullFromFirebase = () => {
     const activeConfig = getActiveConfig(settings.firebaseConfig);
     if (!isFirebaseConfigured(activeConfig)) {
-      alert('Please configure and save your Firebase Web App credentials first.');
+      setConfigFeedback({ text: 'Please configure and save your Firebase Web App credentials first.', isError: true });
+      setShowConfigForm(true);
       return;
     }
-    if (confirm('Are you sure you want to pull data from Firebase Cloud? This will fetch all collections from the cloud database and synchronize them with your local tables.')) {
-      setSyncPulling(true);
-      try {
-        const res = await triggerFirebasePull();
-        if (res.success) {
-          alert('✓ All cloud database collections have been successfully pulled and synchronized with local tables!');
-        } else if (res.error !== 'Cancelled by user') {
-          alert(`Failed pulling from Firestore: ${res.error}`);
-        }
-      } catch (err: any) {
-        alert(`Pull Sync failed: ${err?.message || String(err)}`);
-      } finally {
-        setSyncPulling(false);
+    setPullCloudConfirmOpen(true);
+  };
+
+  const handleExecutePullCloud = async () => {
+    setPullCloudConfirmOpen(false);
+    setSyncPulling(true);
+    try {
+      const res = await triggerFullCloudPull();
+      if (res.success) {
+        setRestoreSuccessNotice('✓ All cloud database collections have been successfully pulled and synchronized with local tables!');
+        setTimeout(() => setRestoreSuccessNotice(null), 8000);
+      } else if (res.error !== 'Cancelled by user') {
+        setConfigFeedback({ text: `Failed pulling from Firestore: ${res.error}`, isError: true });
       }
+    } catch (err: any) {
+      setConfigFeedback({ text: `Pull Sync failed: ${err?.message || String(err)}`, isError: true });
+    } finally {
+      setSyncPulling(false);
     }
   };
 
-  // Compute pending sync changes count
-  const pendingCount = useMemo(() => {
-    const listS = students.filter(s => s.syncStatus === 'pending').length;
-    const listC = schedules.filter(s => s.syncStatus === 'pending').length;
-    const listA = attendance.filter(s => s.syncStatus === 'pending').length;
-    const listP = payments.filter(s => s.syncStatus === 'pending').length;
-    return listS + listC + listA + listP;
-  }, [students, schedules, attendance, payments]);
+  // Compute pending sync changes count across all tables and deletions
+  const pendingCount = totalUnsyncedCount;
 
   // Handle Security PIN Save
   const handleSavePin = () => {
     if (pinEnabledLocal && (!pinInput || pinInput.length !== 4 || !/^\d+$/.test(pinInput))) {
-      alert('Security PIN must consist of exactly 4 numeric digits.');
+      setPinFeedback({ text: 'Security PIN must consist of exactly 4 numeric digits.', isError: true });
       return;
     }
     setPinLock(pinEnabledLocal, pinEnabledLocal ? pinInput : '');
-    alert('Security locks updated successfully.');
+    setPinFeedback({ text: 'Security locks updated successfully.', isError: false });
+    setTimeout(() => setPinFeedback(null), 4000);
   };
 
   const handleSaveLandmarks = () => {
     if (firstAlert <= 0 || secondAlert <= 0 || thirdAlert <= 0) {
-      alert('Alert times must be positive integer values.');
+      setLandmarksFeedback({ text: 'Alert times must be positive integer values.', isError: true });
       return;
     }
     if (firstAlert >= secondAlert || secondAlert >= thirdAlert) {
-      alert('Alert timing order should be successive (1st < 2nd < 3rd milestone).');
+      setLandmarksFeedback({ text: 'Alert timing order should be successive (1st < 2nd < 3rd milestone).', isError: true });
       return;
     }
     updateLandmarkAlerts(firstAlert, secondAlert, thirdAlert, firstSound, secondSound, thirdSound);
-    alert('Session milestone timing and custom audio triggers saved successfully.');
+    setLandmarksFeedback({ text: 'Session milestone timing and custom audio triggers saved successfully.', isError: false });
+    setTimeout(() => setLandmarksFeedback(null), 4000);
   };
 
   // CSV Export utility
-  const handleExportCSV = (module: 'students' | 'attendance' | 'payments' | 'exams') => {
+  const handleExportCSV = async (module: 'students' | 'attendance' | 'payments' | 'exams') => {
     let headers = '';
     let rows = '';
     let fileName = '';
+    let title = '';
+    let count = 0;
 
     if (module === 'students') {
       headers = 'Id,Name,Class,Subjects,Phone,PaymentCycle,MonthlySalary,StartDate,Status\n';
@@ -241,40 +279,57 @@ export default function SettingsModule() {
         `"${s.id}","${s.name}","${s.class}","${(s.subjects || []).join(' | ')}","${s.phone}","${s.paymentCycle}",${s.monthlySalary},"${s.startDate}","${s.status}"`
       ).join('\n');
       fileName = `TutorTrack_Students_${new Date().toISOString().slice(0, 10)}.csv`;
+      title = 'Export Students CSV';
+      count = students.length;
     } else if (module === 'attendance') {
       headers = 'Id,StudentId,Date,EntryAt,ExitAt,Duration,Remarks\n';
       rows = attendance.map(a => 
         `"${a.id}","${a.studentId}","${a.date}","${a.entryAt}","${a.exitAt}",${a.duration},"${a.remarks || ''}"`
       ).join('\n');
       fileName = `TutorTrack_Attendance_${new Date().toISOString().slice(0, 10)}.csv`;
+      title = 'Export Attendance Records CSV';
+      count = attendance.length;
     } else if (module === 'payments') {
       headers = 'Id,StudentId,BillingPeriod,AttendedDays,ExpectedDays,PayableAmount,PaidAmount,DueAmount,PaymentDate,Status\n';
       rows = payments.map(p => 
         `"${p.id}","${p.studentId}","${p.billingPeriod}",${p.attendedDays},${p.expectedDays},${p.payableAmount},${p.paidAmount},${p.dueAmount},"${p.paymentDate || ''}","${p.status}"`
       ).join('\n');
       fileName = `TutorTrack_Payments_${new Date().toISOString().slice(0, 10)}.csv`;
+      title = 'Export Invoices CSV';
+      count = payments.length;
     } else if (module === 'exams') {
       headers = 'Id,StudentId,Subject,Topic,Date,TotalMarks,MarksObtained,Status,Remarks\n';
       rows = examRecords.map(e => 
         `"${e.id}","${e.studentId}","${e.subject}","${e.topic}","${e.date}",${e.totalMarks},${e.marksObtained},"${e.status}","${e.remarks || ''}"`
       ).join('\n');
       fileName = `TutorTrack_ExamRecords_${new Date().toISOString().slice(0, 10)}.csv`;
+      title = 'Export Exam Results CSV';
+      count = examRecords.length;
     }
 
     const csvContent = headers + rows;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const res = await exportFile({
+      fileName,
+      content: csvContent,
+      mimeType: 'text/csv;charset=utf-8;',
+      title
+    });
+
+    setExportPreviewModal({
+      isOpen: true,
+      title,
+      fileName,
+      content: csvContent,
+      mimeType: 'text/csv;charset=utf-8;',
+      itemCount: count
+    });
+
+    setExportSuccessNotice(res.message);
+    setTimeout(() => setExportSuccessNotice(null), 6000);
   };
 
   // High-fidelity JSON Full Backup Export
-  const handleExportBackupJSON = () => {
+  const handleExportBackupJSON = async () => {
     const totalRecords = students.length + schedules.length + attendance.length + payments.length + examSchedules.length + examRecords.length;
     const now = new Date();
     const dateStr = now.toISOString().replace(/[:.]/g, '-').slice(0, 16);
@@ -318,19 +373,26 @@ export default function SettingsModule() {
     };
 
     const jsonStr = JSON.stringify(backupPayload, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const fileName = `TutorTrack_DB_Backup_${dateStr}.json`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const title = 'Full Database Backup Export';
 
-    const sizeKb = (blob.size / 1024).toFixed(1);
-    setExportSuccessNotice(`✓ Backup file generated successfully: "${fileName}" (${totalRecords} items, ${sizeKb} KB)`);
+    const res = await exportFile({
+      fileName,
+      content: jsonStr,
+      mimeType: 'application/json;charset=utf-8;',
+      title
+    });
+
+    setExportPreviewModal({
+      isOpen: true,
+      title,
+      fileName,
+      content: jsonStr,
+      mimeType: 'application/json;charset=utf-8;',
+      itemCount: totalRecords
+    });
+
+    setExportSuccessNotice(res.message);
     setTimeout(() => setExportSuccessNotice(null), 6000);
   };
 
@@ -338,7 +400,8 @@ export default function SettingsModule() {
   const handleProcessBackupFile = (file: File) => {
     if (!file) return;
     if (!file.name.endsWith('.json')) {
-      alert('Please select a valid .json database backup file.');
+      setImportFileError('Please select a valid .json database backup file.');
+      setTimeout(() => setImportFileError(null), 5000);
       return;
     }
 
@@ -364,7 +427,8 @@ export default function SettingsModule() {
         const totalItems = studentsList.length + schedulesList.length + attendanceList.length + paymentsList.length + examSchedulesList.length + examRecordsList.length;
 
         if (totalItems === 0 && !parsed.settings) {
-          alert('Invalid backup structure: The selected JSON file contains no recognized TutorTrack database collections.');
+          setImportFileError('Invalid backup structure: The selected JSON file contains no recognized TutorTrack database collections.');
+          setTimeout(() => setImportFileError(null), 6000);
           return;
         }
 
@@ -395,7 +459,8 @@ export default function SettingsModule() {
 
         setImportModalOpen(true);
       } catch (err: any) {
-        alert('Failed parsing backup JSON file. Error: ' + (err?.message || 'Invalid JSON syntax'));
+        setImportFileError('Failed parsing backup JSON file. Error: ' + (err?.message || 'Invalid JSON syntax'));
+        setTimeout(() => setImportFileError(null), 6000);
       }
     };
     reader.readAsText(file);
@@ -425,7 +490,7 @@ export default function SettingsModule() {
   };
 
   // High-fidelity Export for Unsynced Local Delta
-  const handleExportUnsyncedJSON = () => {
+  const handleExportUnsyncedJSON = async () => {
     const now = new Date();
     const dateStr = now.toISOString().replace(/[:.]/g, '-').slice(0, 16);
     const formattedDate = now.toLocaleDateString('en-US', { 
@@ -464,19 +529,26 @@ export default function SettingsModule() {
     };
 
     const jsonStr = JSON.stringify(payload, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     const fileName = `TutorTrack_Unsynced_Delta_${dateStr}.json`;
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const title = 'Unsynced Local Changes Delta Export';
 
-    const sizeKb = (blob.size / 1024).toFixed(1);
-    setExportSuccessNotice(`✓ Unsynced changes exported successfully: "${fileName}" (${totalUnsyncedCount} pending items, ${sizeKb} KB)`);
+    const res = await exportFile({
+      fileName,
+      content: jsonStr,
+      mimeType: 'application/json;charset=utf-8;',
+      title
+    });
+
+    setExportPreviewModal({
+      isOpen: true,
+      title,
+      fileName,
+      content: jsonStr,
+      mimeType: 'application/json;charset=utf-8;',
+      itemCount: totalUnsyncedCount
+    });
+
+    setExportSuccessNotice(res.message);
     setTimeout(() => setExportSuccessNotice(null), 6000);
   };
 
@@ -484,7 +556,8 @@ export default function SettingsModule() {
   const handleProcessUnsyncedFile = (file: File) => {
     if (!file) return;
     if (!file.name.endsWith('.json')) {
-      alert('Please select a valid .json unsynced delta file.');
+      setImportFileError('Please select a valid .json unsynced delta file.');
+      setTimeout(() => setImportFileError(null), 5000);
       return;
     }
 
@@ -512,7 +585,8 @@ export default function SettingsModule() {
         const totalItems = rawStudents.length + rawSchedules.length + rawAttendance.length + rawPayments.length + rawExamSchedules.length + rawExamRecords.length + rawDeletions.length;
 
         if (totalItems === 0) {
-          alert('No unsynced pending changes or deletions found in this JSON file.');
+          setImportFileError('No unsynced pending changes or deletions found in this JSON file.');
+          setTimeout(() => setImportFileError(null), 6000);
           return;
         }
 
@@ -543,7 +617,8 @@ export default function SettingsModule() {
 
         setImportUnsyncedModalOpen(true);
       } catch (err: any) {
-        alert('Failed parsing delta JSON file. Error: ' + (err?.message || 'Invalid JSON syntax'));
+        setImportFileError('Failed parsing delta JSON file. Error: ' + (err?.message || 'Invalid JSON syntax'));
+        setTimeout(() => setImportFileError(null), 6000);
       }
     };
     reader.readAsText(file);
@@ -687,7 +762,7 @@ export default function SettingsModule() {
           </div>
 
           <p className={`text-xs ${theme.textMuted} leading-relaxed`}>
-            All database modifications write to local cache instantly. Config your Firebase Web App credentials below for real-time background replication.
+            All database modifications write to local cache instantly. Synchronizing pushes only pending local changes to Firestore without downloading the whole database. Use <strong>"Pull Cloud"</strong> to download the entire remote database.
           </p>
 
           <div className={`p-4 ${theme.bgCardElevated} rounded-2xl space-y-2.5 text-xs font-medium ${theme.textMain} border ${theme.borderMuted}`}>
@@ -901,6 +976,17 @@ export default function SettingsModule() {
             <form onSubmit={handleSaveConfig} className={`${theme.bgCardElevated} p-4 rounded-2xl space-y-2.5 border ${theme.borderMain} animate-in slide-in-from-top duration-200`}>
               <span className={`text-[10px] uppercase tracking-widest font-bold ${theme.textMuted} block pb-1 border-b ${theme.borderMuted}`}>Firebase Credentials</span>
               
+              {configFeedback && (
+                <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                  configFeedback.isError 
+                    ? 'bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300' 
+                    : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                }`}>
+                  {configFeedback.isError ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
+                  <span>{configFeedback.text}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <label className={`text-[9px] font-bold ${theme.textMuted} uppercase block`}>API Key *</label>
@@ -1005,7 +1091,7 @@ export default function SettingsModule() {
               onClick={triggerManualSync}
               className={`w-full py-3 ${theme.btnPrimary} rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow`}
             >
-              <CloudLightning size={14} /> Synchronize SQLite to Firebase Now
+              <CloudLightning size={14} /> Synchronize Changes Now {pendingCount > 0 ? `(${pendingCount} Pending)` : '(Up to Date)'}
             </button>
           )}
         </div>
@@ -1053,6 +1139,16 @@ export default function SettingsModule() {
                       {showPinState ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
                   </div>
+                </div>
+              )}
+              {pinFeedback && (
+                <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                  pinFeedback.isError 
+                    ? 'bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300' 
+                    : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                }`}>
+                  {pinFeedback.isError ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
+                  <span>{pinFeedback.text}</span>
                 </div>
               )}
             </div>
@@ -1200,6 +1296,16 @@ export default function SettingsModule() {
                   <Volume2 size={13} />
                 </button>
               </div>
+              {landmarksFeedback && (
+                <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                  landmarksFeedback.isError 
+                    ? 'bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300' 
+                    : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                }`}>
+                  {landmarksFeedback.isError ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
+                  <span>{landmarksFeedback.text}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1242,6 +1348,16 @@ export default function SettingsModule() {
                   {notificationPermission === 'not-supported' ? 'Blocked' : notificationPermission}
                 </span>
               </div>
+              {notificationFeedback && (
+                <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                  notificationFeedback.isError 
+                    ? 'bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-300' 
+                    : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                }`}>
+                  {notificationFeedback.isError ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
+                  <span>{notificationFeedback.text}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1273,6 +1389,21 @@ export default function SettingsModule() {
       </div>
 
       {/* Live Export and Restore Notifications */}
+      {importFileError && (
+        <div className="p-4 bg-rose-500/15 border border-rose-500/30 rounded-2xl text-rose-800 dark:text-rose-300 text-xs font-semibold flex items-center justify-between shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={16} className="text-rose-500 shrink-0" />
+            <span>{importFileError}</span>
+          </div>
+          <button 
+            onClick={() => setImportFileError(null)} 
+            className="p-1 hover:bg-rose-500/20 rounded-lg transition text-rose-700 dark:text-rose-300"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {exportSuccessNotice && (
         <div className="p-4 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center justify-between shadow-sm animate-in fade-in duration-200">
           <div className="flex items-center gap-2">
@@ -1929,16 +2060,50 @@ export default function SettingsModule() {
           Wiping the database deletes all local tables (students, lessons, bills, logs). The local cache will start as a completely fresh, empty dataset. This action is irreversible.
         </p>
         <button
-          onClick={() => {
-            if (confirm('Permanently wipe the SQLite offline database and restore template initial seeds? This action is irreversible.')) {
-              clearDatabase();
-            }
-          }}
+          onClick={() => setWipeDbConfirmOpen(true)}
           className={`px-4 py-2 text-xs font-bold ${theme.bgCard} text-rose-600 dark:text-rose-400 hover:opacity-80 border border-rose-500/30 rounded-xl shadow-sm transition`}
         >
           Erase local database tables (Wipe clean)
         </button>
       </div>
+
+      {/* Cloud Pull Confirmation Modal */}
+      <ConfirmModal
+        isOpen={pullCloudConfirmOpen}
+        title="Pull Cloud Database"
+        message="Pulling all cloud collections will merge remote records with your local database tables. Proceed with cloud replication pull?"
+        confirmText="Pull & Merge"
+        isDestructive={false}
+        icon="cloud"
+        onConfirm={handleExecutePullCloud}
+        onCancel={() => setPullCloudConfirmOpen(false)}
+      />
+
+      {/* Wipe Database Confirmation Modal */}
+      <ConfirmModal
+        isOpen={wipeDbConfirmOpen}
+        title="Permanently Wipe Database"
+        message="Are you sure you want to completely erase all local tables (students, schedules, attendance, payments, exams, logs)? This action is permanent and cannot be undone."
+        confirmText="Permanently Wipe"
+        isDestructive={true}
+        icon="trash"
+        onConfirm={() => {
+          setWipeDbConfirmOpen(false);
+          clearDatabase();
+        }}
+        onCancel={() => setWipeDbConfirmOpen(false)}
+      />
+
+      {/* Cross-Platform Export & Preview Modal */}
+      <ExportPreviewModal
+        isOpen={exportPreviewModal.isOpen}
+        title={exportPreviewModal.title}
+        fileName={exportPreviewModal.fileName}
+        content={exportPreviewModal.content}
+        mimeType={exportPreviewModal.mimeType}
+        itemCount={exportPreviewModal.itemCount}
+        onClose={() => setExportPreviewModal(prev => ({ ...prev, isOpen: false }))}
+      />
 
     </div>
   );

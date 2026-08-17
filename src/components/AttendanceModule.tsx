@@ -6,6 +6,7 @@ import {
   Plus, Calendar, Clock, User, Filter, Search, Trash2, Edit3, X, ClipboardCheck, CheckSquare, ChevronLeft, ChevronRight, List
 } from 'lucide-react';
 import { formatDate, formatTime } from '../formatUtils';
+import ConfirmModal from './ConfirmModal';
 
 // Precise custom student highlight badges matching the user's provided screenshot
 const getStudentBadgeStyle = (name: string) => {
@@ -47,6 +48,7 @@ export default function AttendanceModule() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingAttendance, setEditingAttendance] = useState<Attendance | null>(null);
+  const [deleteConfirmAttendanceId, setDeleteConfirmAttendanceId] = useState<string | null>(null);
   
   // Filtering states
   const [selectedStudentFilter, setSelectedStudentFilter] = useState('All');
@@ -928,11 +930,7 @@ export default function AttendanceModule() {
                                       <span>Edit</span>
                                     </button>
                                     <button
-                                      onClick={() => {
-                                        if (confirm(`Are you sure you want to permanently erase this attendance mark?`)) {
-                                          deleteAttendance(log.id);
-                                        }
-                                      }}
+                                      onClick={() => setDeleteConfirmAttendanceId(log.id)}
                                       className={`${theme.textMuted} hover:text-red-500 font-bold transition flex items-center gap-1`}
                                       title="Delete Entry"
                                     >
@@ -1082,6 +1080,25 @@ export default function AttendanceModule() {
       >
         <Plus size={24} className="stroke-[2.5]" />
       </button>
+
+      {/* Delete Attendance Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmAttendanceId}
+        title="Delete Attendance Record"
+        message="Are you sure you want to permanently erase this attendance record?"
+        subMessage="This record will be removed from monthly totals and invoice calculations."
+        confirmText="Erase Record"
+        cancelText="Cancel"
+        isDestructive={true}
+        icon="trash"
+        onConfirm={() => {
+          if (deleteConfirmAttendanceId) {
+            deleteAttendance(deleteConfirmAttendanceId);
+            setDeleteConfirmAttendanceId(null);
+          }
+        }}
+        onCancel={() => setDeleteConfirmAttendanceId(null)}
+      />
 
     </div>
   );

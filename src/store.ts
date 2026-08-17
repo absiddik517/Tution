@@ -106,10 +106,12 @@ interface TutorTrackStore {
   updateExamRecord: (id: string, updated: Partial<ExamRecord>) => void;
   deleteExamRecord: (id: string) => void;
 
-  // Sync Engine & Settings Trigger
+  // Sync Engine & Cloud Persistence (Incremental Delta vs Full Pull)
+  triggerIncrementalSync: () => Promise<void>;
   triggerManualSync: () => Promise<void>;
-  saveFirebaseConfig: (config: AppSettings['firebaseConfig']) => void;
+  triggerFullCloudPull: () => Promise<{ success: boolean; error?: string }>;
   triggerFirebasePull: () => Promise<{ success: boolean; error?: string }>;
+  saveFirebaseConfig: (config: AppSettings['firebaseConfig']) => void;
   toggleDarkMode: () => void;
   setColorTheme: (theme: 'indigo' | 'emerald' | 'rose' | 'amber' | 'violet' | 'blue') => void;
   setPinLock: (enabled: boolean, pin?: string) => void;
@@ -767,8 +769,8 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     get().addNotification('Exam Record Removed', 'The grade progress sheet was updated.', 'system');
   },
 
-  // OFFLINE-FIRST BACKGROUND SYNC ENGINE (2-WAY BIDIRECTIONAL REPLICATION)
-  triggerManualSync: async () => {
+  // OFFLINE-FIRST INCREMENTAL SYNC ENGINE (DELTA UPDATES ONLY)
+  triggerIncrementalSync: async () => {
     if (get().settings.isSyncing) return;
 
     if (currentSyncAbortController) {
@@ -816,7 +818,7 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
       syncProgress: {
         ...state.syncProgress,
         isSyncing: true,
-        stage: 'Verifying Firestore Mapping...',
+        stage: 'Verifying Firestore Delta Mapping...',
         percent: 5,
         currentCount: 0,
         totalCount: 0,
@@ -826,9 +828,9 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
           {
             id: 'sync-start-' + Date.now(),
             timestamp: startTimeStr,
-            stage: 'Init',
+            stage: 'Incremental Delta Init',
             type: 'info',
-            message: `Initiating Two-Way Cloud Synchronization...`
+            message: `Initiating Cloud Delta Synchronization (Pushing pending changes only)...`
           },
           {
             id: 'sync-cfg-' + Date.now(),
@@ -876,142 +878,51 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
       });
     };
 
-    let workingStudents = [...get().students];
-    let workingSchedules = [...get().schedules];
-    let workingAttendance = [...get().attendance];
-    let workingPayments = [...get().payments];
-    let workingExamSchedules = [...get().examSchedules];
-    let workingExamRecords = [...get().examRecords];
+    let allStudents = [...get().students];
+    let allSchedules = [...get().schedules];
+    let allAttendance = [...get().attendance];
+    let allPayments = [...get().payments];
+    let allExamSchedules = [...get().examSchedules];
+    let allExamRecords = [...get().examRecords];
 
-    const inboundPullStats = {
-      downloadedCount: 0,
-      newlyImported: 0,
-      updatedLocally: 0
-    };
+    const pendingStudents = allStudents.filter(s => s.syncStatus === 'pending');
+    const pendingSchedules = allSchedules.filter(s => s.syncStatus === 'pending');
+    const pendingAttendance = allAttendance.filter(a => a.syncStatus === 'pending');
+    const pendingPayments = allPayments.filter(p => p.syncStatus === 'pending');
+    const pendingExamSchedules = allExamSchedules.filter(e => e.syncStatus === 'pending');
+    const pendingExamRecords = allExamRecords.filter(e => e.syncStatus === 'pending');
 
-    // ==========================================
-    // PHASE 1: INBOUND CLOUD PULL & RECONCILE
-    // ==========================================
-    if (isFirebaseConfigured(config)) {
-      try {
-        appendLog('Inbound Pull', 'info', `Scanning cloud database for remote changes in tutors/${userId}...`);
+    const totalPendingCreationsOrUpdates = 
+      pendingStudents.length + pendingSchedules.length + pendingAttendance.length + 
+      pendingPayments.length + pendingExamSchedules.length + pendingExamRecords.length;
+    const totalPendingDeletions = deletedRecords.length;
+    const totalChanges = totalPendingCreationsOrUpdates + totalPendingDeletions;
 
-        const pullRes = await fetchFromFirebase(config, userId, onProgressCallback, abortSignal);
-        
-        if (pullRes.success && pullRes.data) {
-          const { 
-            students: rawRemoteStudents = [], 
-            schedules: rawRemoteSchedules = [], 
-            attendance: rawRemoteAttendance = [], 
-            payments: rawRemotePayments = [], 
-            examSchedules: rawRemoteExamSchedules = [], 
-            examRecords: rawRemoteExamRecords = [] 
-          } = pullRes.data;
-
-          const remoteStudents = rawRemoteStudents.map(scrubStoreObject);
-          const remoteSchedules = rawRemoteSchedules.map(scrubStoreObject);
-          const remoteAttendance = rawRemoteAttendance.map(scrubStoreObject);
-          const remotePayments = rawRemotePayments.map(scrubStoreObject);
-          const remoteExamSchedules = rawRemoteExamSchedules.map(scrubStoreObject);
-          const remoteExamRecords = rawRemoteExamRecords.map(scrubStoreObject);
-
-          const totalDownloaded = remoteStudents.length + remoteSchedules.length + remoteAttendance.length + remotePayments.length + remoteExamSchedules.length + remoteExamRecords.length;
-          inboundPullStats.downloadedCount = totalDownloaded;
-
-          appendLog('Reconciliation', 'info', `Downloaded ${totalDownloaded} cloud documents across all 6 collections. Reconciling with local state...`);
-
-          // Generic reconciliation helper
-          const reconcileCollection = <T extends { id: string; syncStatus?: string; updatedAt?: string }>(
-            localList: T[],
-            remoteList: T[],
-            collectionName: 'students' | 'schedules' | 'attendance' | 'payments' | 'examSchedules' | 'examRecords'
-          ): { reconciled: T[]; imported: number; updated: number } => {
-            let imported = 0;
-            let updated = 0;
-            const resultMap = new Map<string, T>();
-
-            // Populate local records
-            localList.forEach(item => {
-              resultMap.set(item.id, scrubStoreObject(item));
-            });
-
-            // Reconcile remote records
-            remoteList.forEach(remoteItem => {
-              // If user locally marked this document as deleted, do not resurrect it
-              const isLocallyDeleted = deletedRecords.some(d => d.id === remoteItem.id && d.collectionName === collectionName);
-              if (isLocallyDeleted) {
-                return;
-              }
-
-              const cleanRemote = scrubStoreObject(remoteItem);
-              const localItem = resultMap.get(cleanRemote.id);
-              if (!localItem) {
-                // New record from cloud
-                resultMap.set(cleanRemote.id, { ...cleanRemote, syncStatus: 'synced' as const });
-                imported++;
-              } else {
-                // Both local and remote exist
-                if (localItem.syncStatus === 'pending') {
-                  // User has pending uncommitted local edits: keep local version to push up
-                } else {
-                  // Both are synced: accept remote version
-                  resultMap.set(cleanRemote.id, { ...cleanRemote, syncStatus: 'synced' as const });
-                  updated++;
-                }
-              }
-            });
-
-            return {
-              reconciled: Array.from(resultMap.values()),
-              imported,
-              updated
-            };
-          };
-
-          const studReconcile = reconcileCollection(workingStudents, remoteStudents, 'students');
-          workingStudents = studReconcile.reconciled;
-          inboundPullStats.newlyImported += studReconcile.imported;
-          inboundPullStats.updatedLocally += studReconcile.updated;
-
-          const schedReconcile = reconcileCollection(workingSchedules, remoteSchedules, 'schedules');
-          workingSchedules = schedReconcile.reconciled;
-          inboundPullStats.newlyImported += schedReconcile.imported;
-          inboundPullStats.updatedLocally += schedReconcile.updated;
-
-          const attReconcile = reconcileCollection(workingAttendance, remoteAttendance, 'attendance');
-          workingAttendance = attReconcile.reconciled;
-          inboundPullStats.newlyImported += attReconcile.imported;
-          inboundPullStats.updatedLocally += attReconcile.updated;
-
-          const payReconcile = reconcileCollection(workingPayments, remotePayments, 'payments');
-          workingPayments = payReconcile.reconciled;
-          inboundPullStats.newlyImported += payReconcile.imported;
-          inboundPullStats.updatedLocally += payReconcile.updated;
-
-          const exSchedReconcile = reconcileCollection(workingExamSchedules, remoteExamSchedules, 'examSchedules');
-          workingExamSchedules = exSchedReconcile.reconciled;
-          inboundPullStats.newlyImported += exSchedReconcile.imported;
-          inboundPullStats.updatedLocally += exSchedReconcile.updated;
-
-          const exRecReconcile = reconcileCollection(workingExamRecords, remoteExamRecords, 'examRecords');
-          workingExamRecords = exRecReconcile.reconciled;
-          inboundPullStats.newlyImported += exRecReconcile.imported;
-          inboundPullStats.updatedLocally += exRecReconcile.updated;
-
-          appendLog('Reconciliation', 'success', `✓ Inbound Reconciliation Done: ${inboundPullStats.newlyImported} new records imported, ${inboundPullStats.updatedLocally} updated from cloud.`);
-        } else if (pullRes.error) {
-          appendLog('Inbound Pull', 'warn', `Cloud pull warning: ${pullRes.error}. Proceeding with outbound replication.`);
+    // Check if there are no pending local changes to sync
+    if (totalChanges === 0) {
+      appendLog('Sync Status', 'success', `✓ All records are already up to date with cloud. 0 pending changes.`);
+      const nowStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString();
+      set(state => ({
+        settings: {
+          ...state.settings,
+          isSyncing: false,
+          lastBackupTime: nowStr
+        },
+        syncProgress: {
+          ...state.syncProgress,
+          isSyncing: false,
+          stage: 'Up to Date',
+          percent: 100,
+          lastSuccessMessage: 'All local changes are already synchronized with Firebase Firestore.',
+          lastError: undefined
         }
-      } catch (pullErr: any) {
-        if (pullErr?.message === 'SYNC_CANCELLED' || abortSignal.aborted) {
-          throw pullErr;
-        }
-        appendLog('Inbound Pull', 'warn', `Inbound pull encountered non-blocking issue: ${pullErr?.message || String(pullErr)}. Proceeding with outbound push.`);
-      }
+      }));
+      get().addNotification('Sync Up to Date', 'All records are already in sync with Firebase Firestore.', 'system');
+      return;
     }
 
     // ==========================================
-    // PHASE 2: OUTBOUND CLOUD PUSH & REPLICATION
+    // OUTBOUND CLOUD DELTA SYNC
     // ==========================================
     let firebaseResult: { 
       success: boolean; 
@@ -1025,16 +936,16 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
 
     if (isFirebaseConfigured(config)) {
       try {
-        appendLog('Outbound Push', 'info', `Replicating local pending records & deletions to Firestore...`);
+        appendLog('Outbound Push', 'info', `Replicating ${totalChanges} pending changes (${totalPendingCreationsOrUpdates} updates, ${totalPendingDeletions} deletions) to Firestore...`);
 
-        // Strictly sanitize all entity payloads to prevent Firestore invalid data / undefined value errors
+        // Strictly sanitize only the pending entity payloads to prevent uploading unnecessary records
         const sanitizedOutboundPayload = {
-          students: workingStudents.map(scrubStoreObject),
-          schedules: workingSchedules.map(scrubStoreObject),
-          attendance: workingAttendance.map(scrubStoreObject),
-          payments: workingPayments.map(scrubStoreObject),
-          examSchedules: workingExamSchedules.map(scrubStoreObject),
-          examRecords: workingExamRecords.map(scrubStoreObject),
+          students: pendingStudents.map(scrubStoreObject),
+          schedules: pendingSchedules.map(scrubStoreObject),
+          attendance: pendingAttendance.map(scrubStoreObject),
+          payments: pendingPayments.map(scrubStoreObject),
+          examSchedules: pendingExamSchedules.map(scrubStoreObject),
+          examRecords: pendingExamRecords.map(scrubStoreObject),
           deletedRecords: (deletedRecords || []).map(scrubStoreObject)
         };
 
@@ -1053,8 +964,8 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
       }
     } else {
       // Local backup simulation with progress
-      await new Promise(resolve => setTimeout(resolve, 600));
-      firebaseResult = { success: true, count: workingStudents.length + workingSchedules.length, latencyMs: 600 };
+      await new Promise(resolve => setTimeout(resolve, 400));
+      firebaseResult = { success: true, count: totalChanges, latencyMs: 400 };
     }
 
     if (currentSyncAbortController?.signal === abortSignal) {
@@ -1112,22 +1023,37 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     }
 
     // ==========================================
-    // PHASE 3: DATABASE COMMIT & STATE SYNC
+    // DATABASE COMMIT & LOCAL STATE SYNC
     // ==========================================
-    const syncItem = <T extends { syncStatus: 'pending' | 'synced', updatedAt: string }>(list: T[]): T[] => {
-      return list.map(item => ({
-        ...item,
-        syncStatus: 'synced' as const,
-        updatedAt: item.updatedAt || new Date().toISOString()
-      } as T));
-    };
+    const pendingStudentIds = new Set(pendingStudents.map(s => s.id));
+    const syncedStudents = allStudents.map(s => 
+      pendingStudentIds.has(s.id) ? { ...s, syncStatus: 'synced' as const, previousState: undefined } : s
+    );
 
-    const syncedStudents = syncItem(workingStudents);
-    const syncedSchedules = syncItem(workingSchedules);
-    const syncedAttendance = syncItem(workingAttendance);
-    const syncedPayments = syncItem(workingPayments);
-    const syncedExamSchedules = syncItem(workingExamSchedules);
-    const syncedExamRecords = syncItem(workingExamRecords);
+    const pendingScheduleIds = new Set(pendingSchedules.map(sc => sc.id));
+    const syncedSchedules = allSchedules.map(sc => 
+      pendingScheduleIds.has(sc.id) ? { ...sc, syncStatus: 'synced' as const, previousState: undefined } : sc
+    );
+
+    const pendingAttendanceIds = new Set(pendingAttendance.map(at => at.id));
+    const syncedAttendance = allAttendance.map(at => 
+      pendingAttendanceIds.has(at.id) ? { ...at, syncStatus: 'synced' as const, previousState: undefined } : at
+    );
+
+    const pendingPaymentIds = new Set(pendingPayments.map(p => p.id));
+    const syncedPayments = allPayments.map(p => 
+      pendingPaymentIds.has(p.id) ? { ...p, syncStatus: 'synced' as const, previousState: undefined } : p
+    );
+
+    const pendingExamScheduleIds = new Set(pendingExamSchedules.map(ex => ex.id));
+    const syncedExamSchedules = allExamSchedules.map(ex => 
+      pendingExamScheduleIds.has(ex.id) ? { ...ex, syncStatus: 'synced' as const, previousState: undefined } : ex
+    );
+
+    const pendingExamRecordIds = new Set(pendingExamRecords.map(er => er.id));
+    const syncedExamRecords = allExamRecords.map(er => 
+      pendingExamRecordIds.has(er.id) ? { ...er, syncStatus: 'synced' as const, previousState: undefined } : er
+    );
 
     // Save finalized tables to SQLite/DB
     TutorTrackDB.setStudents(syncedStudents);
@@ -1138,16 +1064,15 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     TutorTrackDB.setExamRecords(syncedExamRecords);
 
     const nowStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString();
-    const totalActive = syncedStudents.length + syncedSchedules.length + syncedAttendance.length + syncedPayments.length + syncedExamSchedules.length + syncedExamRecords.length;
     const totalDuration = Date.now() - startTime;
 
-    const successMsg = `Two-Way Sync Complete: Inbound pulled ${inboundPullStats.downloadedCount} (Imported: ${inboundPullStats.newlyImported}, Updated: ${inboundPullStats.updatedLocally}), Outbound pushed ${firebaseResult.count || 0} records in ${totalDuration}ms.`;
+    const successMsg = `Synced ${totalChanges} pending changes (${totalPendingCreationsOrUpdates} updates, ${totalPendingDeletions} deletions) to Firebase Firestore in ${totalDuration}ms.`;
 
     appendLog(
       'Sync Complete',
       'success',
-      `✓ 2-Way Sync Finished: ${totalActive} database records are fully in sync with Firebase Firestore.`,
-      `Inbound: ${inboundPullStats.downloadedCount} pulled (${inboundPullStats.newlyImported} new, ${inboundPullStats.updatedLocally} updated). Outbound: ${firebaseResult.count || 0} pushed in ${totalDuration}ms.`
+      `✓ Sync Finished: ${totalChanges} local changes successfully pushed to Firebase Firestore.`,
+      `Outbound: ${totalPendingCreationsOrUpdates} modifications pushed, ${totalPendingDeletions} deletions purged in ${totalDuration}ms.`
     );
 
     set(state => ({
@@ -1175,7 +1100,7 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
           projectId: config.projectId,
           userId,
           syncedCollections: firebaseResult.syncedBreakdown,
-          totalSynced: (firebaseResult.count || 0) + inboundPullStats.newlyImported,
+          totalSynced: firebaseResult.count || totalChanges,
           latencyMs: totalDuration,
           rawFeedback: successMsg
         }
@@ -1186,10 +1111,15 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     TutorTrackDB.setSettings(get().settings);
 
     if (isFirebaseConfigured(config)) {
-      get().addNotification('Firestore 2-Way Sync Success', `Replication finished in ${totalDuration}ms. ${inboundPullStats.newlyImported} imported, ${firebaseResult.count || 0} pushed.`, 'system');
+      get().addNotification('Firestore Sync Success', `Replication finished in ${totalDuration}ms. ${totalChanges} changes synced.`, 'system');
     } else {
-      get().addNotification('Backup Success', 'All local tuition backup modules successfully synced.', 'system');
+      get().addNotification('Backup Success', 'All local tuition changes successfully synced.', 'system');
     }
+  },
+
+  // Alias for backwards compatibility & standard trigger
+  triggerManualSync: async () => {
+    return get().triggerIncrementalSync();
   },
 
   stopSync: () => {
@@ -1235,7 +1165,8 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
     get().addNotification('Firebase Configuration Saved', 'Credential parameters connected successfully.', 'system');
   },
 
-  triggerFirebasePull: async () => {
+  // FULL CLOUD DATABASE PULL (ONLY EXECUTED ON EXPLICIT USER DEMAND VIA 'PULL CLOUD')
+  triggerFullCloudPull: async () => {
     const config = getActiveConfig(get().settings.firebaseConfig);
     const userId = get().currentUser?.uid || 'tutor-default';
     if (!isFirebaseConfigured(config)) {
@@ -1265,7 +1196,7 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
             timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             stage: 'Cloud Pull',
             type: 'info',
-            message: `Starting cloud restore from Firebase project "${config.projectId}"...`
+            message: `Starting full cloud restore from Firebase partition "tutors/${userId}"...`
           },
           ...state.syncProgress.logs.slice(0, 30)
         ]
@@ -1328,7 +1259,7 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
           stage: result.success ? 'Pull Complete' : 'Pull Failed',
           percent: 100,
           lastError: result.error,
-          lastSuccessMessage: result.success ? 'Successfully downloaded and restored cloud database.' : undefined
+          lastSuccessMessage: result.success ? 'Successfully downloaded and restored full cloud database.' : undefined
         }
       }));
 
@@ -1404,6 +1335,11 @@ export const useStore = create<TutorTrackStore>((originalSet, get) => {
       }));
       return { success: false, error: e?.message || String(e) };
     }
+  },
+
+  // Alias for backwards compatibility
+  triggerFirebasePull: async () => {
+    return get().triggerFullCloudPull();
   },
 
   toggleDarkMode: () => {

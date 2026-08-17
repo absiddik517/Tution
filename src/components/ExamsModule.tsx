@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { formatDate, formatTime } from '../formatUtils';
 import { useTheme } from '../theme';
+import ConfirmModal from './ConfirmModal';
 
 export default function ExamsModule() {
   const { theme, darkMode } = useTheme();
@@ -31,6 +32,11 @@ export default function ExamsModule() {
   const [selectedAnalyticsStudentId, setSelectedAnalyticsStudentId] = useState<string>(() => {
     return students[0]?.id || '';
   });
+
+  const [deleteConfirmExamScheduleId, setDeleteConfirmExamScheduleId] = useState<string | null>(null);
+  const [deleteConfirmExamRecordId, setDeleteConfirmExamRecordId] = useState<string | null>(null);
+  const [scheduleFormError, setScheduleFormError] = useState('');
+  const [recordFormError, setRecordFormError] = useState('');
 
   // Form states - Exam Schedule
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -369,7 +375,7 @@ export default function ExamsModule() {
   const handleScheduleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!scheduleForm.studentId || !scheduleForm.subject || !scheduleForm.topic || !scheduleForm.date) {
-      alert('Kindly complete all mandatory input parameters.');
+      setScheduleFormError('Kindly complete all mandatory input parameters.');
       return;
     }
 
@@ -378,6 +384,7 @@ export default function ExamsModule() {
     } else {
       addExamSchedule(scheduleForm);
     }
+    setScheduleFormError('');
     setShowScheduleModal(false);
   };
 
@@ -435,7 +442,7 @@ export default function ExamsModule() {
   const handleRecordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!recordForm.studentId || !recordForm.subject || !recordForm.topic || !recordForm.date) {
-      alert('Kindly complete all mandatory fields.');
+      setRecordFormError('Kindly complete all mandatory fields.');
       return;
     }
 
@@ -456,6 +463,7 @@ export default function ExamsModule() {
     } else {
       addExamRecord(payload);
     }
+    setRecordFormError('');
     setShowRecordModal(false);
   };
 
@@ -762,11 +770,7 @@ export default function ExamsModule() {
                             <Edit2 size={12} />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm('Are you sure you want to delete this schedule? This cannot be undone.')) {
-                                deleteExamSchedule(ex.id);
-                              }
-                            }}
+                            onClick={() => setDeleteConfirmExamScheduleId(ex.id)}
                             className={`p-2 border ${theme.borderMain} hover:bg-rose-50 dark:hover:bg-rose-950/20 ${theme.textMuted} hover:text-rose-600 rounded-xl transition cursor-pointer`}
                             title="Delete schedule slot"
                           >
@@ -888,11 +892,7 @@ export default function ExamsModule() {
                               <Edit2 size={11} />
                             </button>
                             <button
-                              onClick={() => {
-                                if (confirm('Are you sure you want to delete this result entry?')) {
-                                  deleteExamRecord(rec.id);
-                                }
-                              }}
+                              onClick={() => setDeleteConfirmExamRecordId(rec.id)}
                               className={`p-1.5 border ${theme.borderMain} hover:bg-rose-50 dark:hover:bg-rose-950/20 ${theme.textMuted} hover:text-rose-600 rounded-lg transition`}
                               title="Delete result row"
                             >
@@ -1117,6 +1117,12 @@ export default function ExamsModule() {
 
             <form onSubmit={handleScheduleSubmit} className="space-y-4">
               
+              {scheduleFormError && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-150 dark:border-red-900/40 rounded-xl text-xs text-red-600 dark:text-red-400 font-bold">
+                  ⚠️ {scheduleFormError}
+                </div>
+              )}
+
               {/* Pupil select */}
               <div className="space-y-1">
                 <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Target Pupil *</label>
@@ -1253,6 +1259,12 @@ export default function ExamsModule() {
 
             <form onSubmit={handleRecordSubmit} className="space-y-4">
               
+              {recordFormError && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-150 dark:border-red-900/40 rounded-xl text-xs text-red-600 dark:text-red-400 font-bold">
+                  ⚠️ {recordFormError}
+                </div>
+              )}
+
               {/* Pupil select */}
               <div className="space-y-1">
                 <label className={`text-[10px] uppercase font-bold ${theme.textMuted} tracking-wider font-display`}>Target Pupil *</label>
@@ -1387,6 +1399,44 @@ export default function ExamsModule() {
           </div>
         </div>
       )}
+
+      {/* Delete Exam Schedule Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmExamScheduleId}
+        title="Delete Exam Slot"
+        message="Are you sure you want to delete this scheduled exam slot?"
+        subMessage="This will cancel scheduled notifications and remove it from the planner."
+        confirmText="Delete Slot"
+        cancelText="Cancel"
+        isDestructive={true}
+        icon="trash"
+        onConfirm={() => {
+          if (deleteConfirmExamScheduleId) {
+            deleteExamSchedule(deleteConfirmExamScheduleId);
+            setDeleteConfirmExamScheduleId(null);
+          }
+        }}
+        onCancel={() => setDeleteConfirmExamScheduleId(null)}
+      />
+
+      {/* Delete Exam Record Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmExamRecordId}
+        title="Delete Exam Result Record"
+        message="Are you sure you want to delete this exam result entry?"
+        subMessage="This grade record will be removed from pupil analytics and grade summaries."
+        confirmText="Delete Record"
+        cancelText="Cancel"
+        isDestructive={true}
+        icon="trash"
+        onConfirm={() => {
+          if (deleteConfirmExamRecordId) {
+            deleteExamRecord(deleteConfirmExamRecordId);
+            setDeleteConfirmExamRecordId(null);
+          }
+        }}
+        onCancel={() => setDeleteConfirmExamRecordId(null)}
+      />
 
     </div>
   );
